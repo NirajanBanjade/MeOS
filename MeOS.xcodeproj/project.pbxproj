@@ -1,0 +1,136 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* MeOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* MeOSApp.swift */; };
+		A10000000000000000000002 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* AppModel.swift */; };
+		A10000000000000000000003 /* ShellStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* ShellStore.swift */; };
+		A10000000000000000000004 /* AppModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* AppModels.swift */; };
+		A10000000000000000000005 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* DesignTokens.swift */; };
+		A10000000000000000000006 /* LaboratoryScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* LaboratoryScene.swift */; };
+		A10000000000000000000007 /* SharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* SharedComponents.swift */; };
+		A10000000000000000000008 /* PanelContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* PanelContainer.swift */; };
+		A10000000000000000000009 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* HomeView.swift */; };
+		A1000000000000000000000A /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000A /* GameView.swift */; };
+		A1000000000000000000000B /* AppPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* AppPanels.swift */; };
+		A1000000000000000000000C /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* RootView.swift */; };
+		A1000000000000000000000D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000D /* Assets.xcassets */; };
+		A1000000000000000000000E /* AppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000E /* AppModelTests.swift */; };
+		A1000000000000000000000F /* ShellStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000F /* ShellStoreTests.swift */; };
+		A10000000000000000000010 /* MeOSUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* MeOSUITests.swift */; };
+		A10000000000000000000011 /* LaboratoryWorld.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* LaboratoryWorld.swift */; };
+		A10000000000000000000012 /* LaboratoryWorldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* LaboratoryWorldTests.swift */; };
+		A10000000000000000000013 /* LaboratoryScenePerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* LaboratoryScenePerformanceTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A30000000000000000000001 = {isa = PBXContainerItemProxy; containerPortal = A90000000000000000000001 /* Project object */; proxyType = 1; remoteGlobalIDString = A70000000000000000000001; remoteInfo = MeOS; };
+		A30000000000000000000002 = {isa = PBXContainerItemProxy; containerPortal = A90000000000000000000001 /* Project object */; proxyType = 1; remoteGlobalIDString = A70000000000000000000001; remoteInfo = MeOS; };
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		A20000000000000000000001 /* MeOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOS/App/MeOSApp.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000002 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOS/App/AppModel.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000003 /* ShellStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOS/App/ShellStore.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000004 /* AppModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOS/Models/AppModels.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000005 /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOS/DesignSystem/DesignTokens.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000006 /* LaboratoryScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOS/Game/LaboratoryScene.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000007 /* SharedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOS/Views/Components/SharedComponents.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000008 /* PanelContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOS/Views/Components/PanelContainer.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000009 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOS/Views/HomeView.swift; sourceTree = SOURCE_ROOT; };
+		A2000000000000000000000A /* GameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOS/Views/GameView.swift; sourceTree = SOURCE_ROOT; };
+		A2000000000000000000000B /* AppPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOS/Views/Panels/AppPanels.swift; sourceTree = SOURCE_ROOT; };
+		A2000000000000000000000C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOS/Views/RootView.swift; sourceTree = SOURCE_ROOT; };
+		A2000000000000000000000D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = MeOS/Resources/Assets.xcassets; sourceTree = SOURCE_ROOT; };
+		A2000000000000000000000E /* AppModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOSTests/AppModelTests.swift; sourceTree = SOURCE_ROOT; };
+		A2000000000000000000000F /* ShellStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOSTests/ShellStoreTests.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000010 /* MeOSUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOSUITests/MeOSUITests.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000011 /* MeOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MeOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000012 /* MeOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MeOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000013 /* MeOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MeOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000014 /* LaboratoryWorld.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOS/Models/LaboratoryWorld.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000015 /* LaboratoryWorldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOSTests/LaboratoryWorldTests.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000016 /* LaboratoryScenePerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeOSTests/LaboratoryScenePerformanceTests.swift; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A40000000000000000000001 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A40000000000000000000002 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A40000000000000000000003 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A50000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A50000000000000000000002 /* MeOS */,
+				A50000000000000000000003 /* MeOSTests */,
+				A50000000000000000000004 /* MeOSUITests */,
+				A50000000000000000000005 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A50000000000000000000002 /* MeOS */ = {isa = PBXGroup; children = (A20000000000000000000001, A20000000000000000000002, A20000000000000000000003, A20000000000000000000004, A20000000000000000000014, A20000000000000000000005, A20000000000000000000006, A20000000000000000000007, A20000000000000000000008, A20000000000000000000009, A2000000000000000000000A, A2000000000000000000000B, A2000000000000000000000C, A2000000000000000000000D); name = MeOS; sourceTree = "<group>"; };
+		A50000000000000000000003 /* MeOSTests */ = {isa = PBXGroup; children = (A2000000000000000000000E, A2000000000000000000000F, A20000000000000000000015, A20000000000000000000016); name = MeOSTests; sourceTree = "<group>"; };
+		A50000000000000000000004 /* MeOSUITests */ = {isa = PBXGroup; children = (A20000000000000000000010); name = MeOSUITests; sourceTree = "<group>"; };
+		A50000000000000000000005 /* Products */ = {isa = PBXGroup; children = (A20000000000000000000011, A20000000000000000000012, A20000000000000000000013); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A70000000000000000000001 /* MeOS */ = {
+			isa = PBXNativeTarget; buildConfigurationList = AA0000000000000000000001; buildPhases = (A60000000000000000000001, A40000000000000000000001, A60000000000000000000004); buildRules = (); dependencies = (); name = MeOS; productName = MeOS; productReference = A20000000000000000000011; productType = "com.apple.product-type.application";
+		};
+		A70000000000000000000002 /* MeOSTests */ = {
+			isa = PBXNativeTarget; buildConfigurationList = AA0000000000000000000002; buildPhases = (A60000000000000000000002, A40000000000000000000002); buildRules = (); dependencies = (A80000000000000000000001); name = MeOSTests; productName = MeOSTests; productReference = A20000000000000000000012; productType = "com.apple.product-type.bundle.unit-test";
+		};
+		A70000000000000000000003 /* MeOSUITests */ = {
+			isa = PBXNativeTarget; buildConfigurationList = AA0000000000000000000003; buildPhases = (A60000000000000000000003, A40000000000000000000003); buildRules = (); dependencies = (A80000000000000000000002); name = MeOSUITests; productName = MeOSUITests; productReference = A20000000000000000000013; productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A90000000000000000000001 /* Project object */ = {
+			isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 2700; LastUpgradeCheck = 2700; TargetAttributes = {A70000000000000000000001 = {CreatedOnToolsVersion = 27.0; }; A70000000000000000000002 = {CreatedOnToolsVersion = 27.0; TestTargetID = A70000000000000000000001; }; A70000000000000000000003 = {CreatedOnToolsVersion = 27.0; TestTargetID = A70000000000000000000001; }; }; }; buildConfigurationList = AA0000000000000000000000; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = A50000000000000000000001; productRefGroup = A50000000000000000000005; projectDirPath = ""; projectRoot = ""; targets = (A70000000000000000000001, A70000000000000000000002, A70000000000000000000003);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A60000000000000000000004 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A1000000000000000000000D); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A60000000000000000000001 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004, A10000000000000000000011, A10000000000000000000005, A10000000000000000000006, A10000000000000000000007, A10000000000000000000008, A10000000000000000000009, A1000000000000000000000A, A1000000000000000000000B, A1000000000000000000000C); runOnlyForDeploymentPostprocessing = 0; };
+		A60000000000000000000002 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A1000000000000000000000E, A1000000000000000000000F, A10000000000000000000012, A10000000000000000000013); runOnlyForDeploymentPostprocessing = 0; };
+		A60000000000000000000003 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000010); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A80000000000000000000001 = {isa = PBXTargetDependency; target = A70000000000000000000001; targetProxy = A30000000000000000000001; };
+		A80000000000000000000002 = {isa = PBXTargetDependency; target = A70000000000000000000001; targetProxy = A30000000000000000000002; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		AB0000000000000000000001 = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; ENABLE_STRICT_OBJC_MSGSEND = YES; GCC_C_LANGUAGE_STANDARD = gnu17; IPHONEOS_DEPLOYMENT_TARGET = 18.0; SDKROOT = iphoneos; SWIFT_VERSION = 6.0; }; name = Debug; };
+		AB0000000000000000000002 = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; ENABLE_STRICT_OBJC_MSGSEND = YES; GCC_C_LANGUAGE_STANDARD = gnu17; IPHONEOS_DEPLOYMENT_TARGET = 18.0; SDKROOT = iphoneos; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_VERSION = 6.0; VALIDATE_PRODUCT = YES; }; name = Release; };
+		AB0000000000000000000011 = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_PREVIEWS = YES; ENABLE_TESTABILITY = YES; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = MeOS; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UIRequiresFullScreen = YES; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.example.MeOS; PRODUCT_NAME = "$(TARGET_NAME)"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; TARGETED_DEVICE_FAMILY = 2; }; name = Debug; };
+		AB0000000000000000000012 = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = MeOS; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UIRequiresFullScreen = YES; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.example.MeOS; PRODUCT_NAME = "$(TARGET_NAME)"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 2; }; name = Release; };
+		AB0000000000000000000021 = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 18.0; PRODUCT_BUNDLE_IDENTIFIER = com.example.MeOSTests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 2; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MeOS.app/MeOS"; }; name = Debug; };
+		AB0000000000000000000022 = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 18.0; PRODUCT_BUNDLE_IDENTIFIER = com.example.MeOSTests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 2; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MeOS.app/MeOS"; }; name = Release; };
+		AB0000000000000000000031 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 18.0; PRODUCT_BUNDLE_IDENTIFIER = com.example.MeOSUITests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 2; TEST_TARGET_NAME = MeOS; }; name = Debug; };
+		AB0000000000000000000032 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 18.0; PRODUCT_BUNDLE_IDENTIFIER = com.example.MeOSUITests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 2; TEST_TARGET_NAME = MeOS; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AA0000000000000000000000 = {isa = XCConfigurationList; buildConfigurations = (AB0000000000000000000001, AB0000000000000000000002); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		AA0000000000000000000001 = {isa = XCConfigurationList; buildConfigurations = (AB0000000000000000000011, AB0000000000000000000012); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		AA0000000000000000000002 = {isa = XCConfigurationList; buildConfigurations = (AB0000000000000000000021, AB0000000000000000000022); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		AA0000000000000000000003 = {isa = XCConfigurationList; buildConfigurations = (AB0000000000000000000031, AB0000000000000000000032); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = A90000000000000000000001 /* Project object */;
+}
+
