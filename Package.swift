@@ -19,6 +19,8 @@ let package = Package(
             sources: [
                 "Models/AppModels.swift",
                 "Models/LaboratoryWorld.swift",
+                "Simulation/SimulationModels.swift",
+                "Simulation/SimulationEngine.swift",
                 "App/ShellStore.swift",
                 "App/AppModel.swift"
             ]

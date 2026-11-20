@@ -71,9 +71,14 @@ Build the pure Swift source of truth for requests, queues, workers, CPU limits, 
 
 ## Complete When
 
-- [ ] All public models are value-oriented, stable-ID based, and testable without UI frameworks.
-- [ ] Standard fixtures produce the specified metrics.
-- [ ] Every invariant and database/infrastructure rule has a passing test.
-- [ ] Events contain enough information to reproduce every required visual and explanation.
-- [ ] No wall-clock, frame-rate, or device-performance dependency exists.
+- [x] All public models are value-oriented, stable-ID based, and testable without UI frameworks.
+  - Evidence: `SimulationModels.swift` defines Codable, Equatable, Sendable value models with stable request, node, and worker IDs; the Swift Package test target compiles them without UI frameworks.
+- [x] Standard fixtures produce the specified metrics.
+  - Evidence: `SimulationEngineTests.oneWorkerFixture` and `twoWorkerFixture` verify the exact completion timestamps, 5,000/3,000 ms makespans, and 3,000/1,960 ms average latencies.
+- [x] Every invariant and database/infrastructure rule has a passing test.
+  - Evidence: `SimulationEngineTests.swift` covers validation, reconciliation, queue/worker/CPU limits, snapshots, CRUD/capacity/contention, connection failures, replica lag/staleness, cache behavior, outages, and routing; focused Xcode tests passed 33/33.
+- [x] Events contain enough information to reproduce every required visual and explanation.
+  - Evidence: typed `SimulationEventPayload` cases record queue positions, worker assignment, ordered phase/CPU activity, database/cache/replica operations, terminal reasons, IDs, timestamps, and stable sequences; metrics and explanation IDs are derived from that event log.
+- [x] No wall-clock, frame-rate, or device-performance dependency exists.
+  - Evidence: the pure `SimulationEngine` uses integer simulated milliseconds only; `snapshotsAndFrameIndependence` verifies identical results with presentation FPS values from 0 through 120.
 
