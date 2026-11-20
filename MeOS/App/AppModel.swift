@@ -8,23 +8,36 @@ final class AppModel: ObservableObject {
     @Published private(set) var hasValidSave = false
     @Published private(set) var recoveryMessage: String?
     @Published var soundEnabled: Bool {
-        didSet { store.saveSoundEnabled(soundEnabled) }
+        didSet {
+            store.saveSoundEnabled(soundEnabled)
+            if !isRestoring { persistCheckpoint() }
+        }
     }
     @Published private(set) var playerPosition = PlayerPosition.initial
     @Published private(set) var laboratoryState = LaboratorySessionState.initial
     @Published private(set) var nearbyObjectID: LaboratoryObjectID?
     @Published private(set) var movementMessage: String?
     @Published private(set) var activeMission = 1
+    @Published private(set) var missionEngine = MissionEngine()
 
-    let currentObjective = "Inspect the Server to learn how requests are processed."
-    let missionTitle = "Mission 1 · Request Queue"
-    let missionProgress = "Step 1 of 3"
+    var currentObjective: String {
+        missionEngine.currentDefinition?.objectives.first?.text
+            ?? "Mission content is unavailable."
+    }
+    var missionTitle: String {
+        guard let definition = missionEngine.currentDefinition else { return "Mission unavailable" }
+        return "Mission \(definition.id.rawValue) · \(definition.title)"
+    }
+    var missionProgress: String {
+        "\(missionEngine.progress.completedMissionIDs.count) of \(MissionID.allCases.count) complete"
+    }
     let forceReduceMotion = ProcessInfo.processInfo.arguments.contains("-UI_TEST_REDUCE_MOTION")
 
     private let store: any ShellSaving
+    private var isRestoring = false
     let laboratoryWorld = LaboratoryWorld.standard
 
-    init(store: any ShellSaving = UserDefaultsShellStore()) {
+    init(store: any ShellSaving = AtomicFileShellStore()) {
         self.store = store
         soundEnabled = store.loadSoundEnabled()
         restore()
@@ -34,6 +47,11 @@ final class AppModel: ObservableObject {
     var shouldShowEngineerIntroduction: Bool { !laboratoryState.engineerIntroductionSeen }
     var nearbyObject: LaboratoryObject? {
         nearbyObjectID.flatMap(laboratoryWorld.object)
+    }
+    var completedMissionDefinitions: [MissionDefinition] {
+        missionEngine.progress.completedMissionIDs.sorted().compactMap {
+            missionEngine.catalog.definition(for: $0)
+        }
     }
 
     func enterLaboratory() {
@@ -126,7 +144,42 @@ final class AppModel: ObservableObject {
         updateNearbyObject()
     }
 
+    func startCurrentMission() throws {
+        try missionEngine.start()
+    }
+
+    func markMissionObjective(_ objectiveID: String) throws {
+        try missionEngine.markObjective(objectiveID)
+    }
+
+    @discardableResult
+    func completeCurrentMission(using context: MissionEvaluationContext) throws -> Bool {
+        let awarded = try missionEngine.complete(using: context)
+        activeMission = missionEngine.progress.currentMissionID.rawValue
+        updateNearbyObject()
+        persistCheckpoint()
+        return awarded
+    }
+
+    func retryCurrentMission() throws {
+        try missionEngine.retry()
+        persistCheckpoint()
+    }
+
+    func replayMission(_ id: MissionID) throws {
+        try missionEngine.replay(id)
+        activeMission = id.rawValue
+        updateNearbyObject()
+        closePanel()
+    }
+
+    func updateConfiguredComponents(_ components: [SystemNode]) throws {
+        try missionEngine.updateConfiguredComponents(components)
+        persistCheckpoint()
+    }
+
     func handleBackgrounding() {
+        missionEngine.prepareForBackground()
         persistCheckpoint()
     }
 
@@ -135,6 +188,8 @@ final class AppModel: ObservableObject {
     }
 
     private func restore() {
+        isRestoring = true
+        defer { isRestoring = false }
         do {
             guard let save = try store.load() else { return }
             hasValidSave = save.hasEnteredLaboratory
@@ -144,6 +199,12 @@ final class AppModel: ObservableObject {
                 discoveredObjects: save.discoveredObjectIDs,
                 engineerIntroductionSeen: save.engineerIntroductionSeen
             )
+            soundEnabled = save.soundEnabled
+            missionEngine = MissionEngine(progress: save.missionProgress)
+            activeMission = missionEngine.progress.currentMissionID.rawValue
+            if save.missionProgress.lifecycle == .running {
+                persistCheckpoint()
+            }
         } catch {
             hasValidSave = false
             playerPosition = .initial
@@ -157,7 +218,9 @@ final class AppModel: ObservableObject {
             hasEnteredLaboratory: hasValidSave,
             playerPosition: playerPosition,
             discoveredObjectIDs: laboratoryState.discoveredObjects,
-            engineerIntroductionSeen: laboratoryState.engineerIntroductionSeen
+            engineerIntroductionSeen: laboratoryState.engineerIntroductionSeen,
+            soundEnabled: soundEnabled,
+            missionProgress: missionEngine.durableProgress
         ))
     }
 

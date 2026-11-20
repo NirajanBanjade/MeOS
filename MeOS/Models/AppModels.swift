@@ -8,16 +8,20 @@ struct PlayerPosition: Codable, Equatable, Sendable {
 }
 
 struct ShellSave: Codable, Equatable, Sendable {
-    static let supportedVersion = 1
+    static let supportedVersion = 2
+    static let oldestSupportedVersion = 1
 
     var schemaVersion: Int = supportedVersion
     var hasEnteredLaboratory: Bool
     var playerPosition: PlayerPosition
     var discoveredObjectIDs: Set<LaboratoryObjectID> = []
     var engineerIntroductionSeen = false
+    var soundEnabled = true
+    var missionProgress: MissionProgress = .initial
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, hasEnteredLaboratory, playerPosition, discoveredObjectIDs, engineerIntroductionSeen
+        case soundEnabled, missionProgress
     }
 
     init(
@@ -25,13 +29,17 @@ struct ShellSave: Codable, Equatable, Sendable {
         hasEnteredLaboratory: Bool,
         playerPosition: PlayerPosition,
         discoveredObjectIDs: Set<LaboratoryObjectID> = [],
-        engineerIntroductionSeen: Bool = false
+        engineerIntroductionSeen: Bool = false,
+        soundEnabled: Bool = true,
+        missionProgress: MissionProgress = .initial
     ) {
         self.schemaVersion = schemaVersion
         self.hasEnteredLaboratory = hasEnteredLaboratory
         self.playerPosition = playerPosition
         self.discoveredObjectIDs = discoveredObjectIDs
         self.engineerIntroductionSeen = engineerIntroductionSeen
+        self.soundEnabled = soundEnabled
+        self.missionProgress = missionProgress
     }
 
     init(from decoder: any Decoder) throws {
@@ -41,6 +49,8 @@ struct ShellSave: Codable, Equatable, Sendable {
         playerPosition = try values.decode(PlayerPosition.self, forKey: .playerPosition)
         discoveredObjectIDs = try values.decodeIfPresent(Set<LaboratoryObjectID>.self, forKey: .discoveredObjectIDs) ?? []
         engineerIntroductionSeen = try values.decodeIfPresent(Bool.self, forKey: .engineerIntroductionSeen) ?? false
+        soundEnabled = try values.decodeIfPresent(Bool.self, forKey: .soundEnabled) ?? true
+        missionProgress = try values.decodeIfPresent(MissionProgress.self, forKey: .missionProgress) ?? .initial
     }
 }
 

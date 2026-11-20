@@ -56,9 +56,14 @@ Provide a centralized mission engine and reliable local progress so objectives, 
 
 ## Complete When
 
-- [ ] One mission engine owns objectives, completion, unlocks, retries, and replay.
-- [ ] All five definitions are local and load without a network.
-- [ ] Progress survives normal termination and relaunch.
-- [ ] Replay and older missions are isolated from later experimental state.
-- [ ] Mission and persistence tests pass.
+- [x] One mission engine owns objectives, completion, unlocks, retries, and replay.
+  - Evidence: `MissionEngine.swift` centralizes prerequisite checks, lifecycle, objective updates, idempotent awards, retry, and replay; `MissionEngineTests.fullProgression` and `lifecycleEdges`; `swift test` (41 tests passed).
+- [x] All five definitions are local and load without a network.
+  - Evidence: `MissionModels.swift` contains the five complete local definitions and evaluators; `MissionEngineTests.definitions`; `swift test` (41 tests passed).
+- [x] Progress survives normal termination and relaunch.
+  - Evidence: schema-v2 `ShellSave`, `AtomicFileShellStore`, and `AppModel` checkpoint integration; atomic round-trip, migration, recovery, interrupted-run, and relaunch tests; `swift test` (41 tests passed).
+- [x] Replay and older missions are isolated from later experimental state.
+  - Evidence: replay sessions rebuild definition baselines without mutating canonical achievements/components; `MissionEngineTests.replayIsolation` and clean replay controls in `MissionPanel`; `swift test` (41 tests passed).
+- [x] Mission and persistence tests pass.
+  - Evidence: `MissionEngineTests.swift`, `ShellStoreTests.swift`, and `AppModelTests.completedProgressRelaunch`; `swift test` passed 41/41 tests.
 

@@ -68,6 +68,34 @@ struct AppModelTests {
             #expect(model.playerPosition == originalPosition)
         }
     }
+
+    @Test("Completed progress, title, Continue, and replay survive relaunch")
+    func completedProgressRelaunch() throws {
+        let store = MemoryStore()
+        let progress = MissionProgress(
+            currentMissionID: .systemDiagnostics,
+            completedMissionIDs: Set(MissionID.allCases),
+            titleAwarded: true,
+            lifecycle: .completed,
+            configuredComponents: [SystemNode(id: "primary", type: .primaryDatabase)]
+        )
+        store.value = ShellSave(
+            hasEnteredLaboratory: true,
+            playerPosition: .init(x: 0.4, y: 0.6),
+            soundEnabled: false,
+            missionProgress: progress
+        )
+
+        let restored = AppModel(store: store)
+        #expect(restored.primaryActionTitle == "Continue")
+        #expect(restored.activeMission == 5)
+        #expect(restored.missionEngine.progress == progress)
+        #expect(restored.missionEngine.progress.titleAwarded)
+        try restored.replayMission(.sequentialProcessing)
+        #expect(restored.missionEngine.session?.isReplay == true)
+        #expect(restored.missionEngine.progress.completedMissionIDs == Set(MissionID.allCases))
+        #expect(store.value?.missionProgress == progress)
+    }
 }
 
 private final class MemoryStore: ShellSaving {

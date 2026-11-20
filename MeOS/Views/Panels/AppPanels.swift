@@ -25,6 +25,16 @@ struct MissionPanel: View {
                     model.replacePanel(with: .system(.server))
                 }
                 .accessibilityIdentifier("mission.primaryAction")
+                if !model.completedMissionDefinitions.isEmpty {
+                    section("Replay completed missions", text: "Replays use each mission’s clean baseline without changing achievements or later progress.", icon: "arrow.counterclockwise")
+                    ForEach(model.completedMissionDefinitions) { definition in
+                        MeOSSecondaryButton(title: "Replay Mission \(definition.id.rawValue): \(definition.title)", icon: "play.circle.fill") {
+                            try? model.replayMission(definition.id)
+                        }
+                        .accessibilityHint("Starts a clean replay and preserves all completed missions and unlocks")
+                        .accessibilityIdentifier("mission.replay.\(definition.id.rawValue)")
+                    }
+                }
             }
         }
     }

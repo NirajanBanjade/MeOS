@@ -21,6 +21,8 @@ let package = Package(
                 "Models/LaboratoryWorld.swift",
                 "Simulation/SimulationModels.swift",
                 "Simulation/SimulationEngine.swift",
+                "Missions/MissionModels.swift",
+                "Missions/MissionEngine.swift",
                 "App/ShellStore.swift",
                 "App/AppModel.swift"
             ]
