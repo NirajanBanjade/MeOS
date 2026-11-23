@@ -19,6 +19,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var movementMessage: String?
     @Published private(set) var activeMission = 1
     @Published private(set) var missionEngine = MissionEngine()
+    @Published private(set) var visualizationRun: VisualizationRun?
 
     var currentObjective: String {
         missionEngine.currentDefinition?.objectives.first?.text
@@ -181,6 +182,34 @@ final class AppModel: ObservableObject {
     func handleBackgrounding() {
         missionEngine.prepareForBackground()
         persistCheckpoint()
+    }
+
+    /// Creates a deterministic, non-mission preview for the shared Feature 05
+    /// visualization. Mission completion remains exclusively owned by MissionEngine.
+    func prepareVisualizationPreview() {
+        let nodes = [
+            SystemNode(id: "client", type: .client, connections: ["server"]),
+            SystemNode(id: "server", type: .applicationServer, connections: ["cpu"]),
+            SystemNode(id: "cpu", type: .cpu)
+        ]
+        let workload = (1...5).map { Request(id: RequestID(rawValue: "request-\($0)")) }
+        let configuration = SimulationConfiguration(workerCount: 1, nodes: nodes, seed: 5)
+        do {
+            let result = try SimulationEngine().run(
+                initialState: GameState(mission: activeMission),
+                workload: workload,
+                configuration: configuration
+            )
+            visualizationRun = VisualizationRun(
+                workload: workload,
+                configuration: configuration,
+                result: result,
+                baselineResult: nil
+            )
+        } catch {
+            visualizationRun = nil
+            movementMessage = "The simulation preview could not be prepared."
+        }
     }
 
     func dismissRecoveryMessage() {

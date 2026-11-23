@@ -79,6 +79,7 @@ struct SystemPanel: View {
                     Spacer()
                 }
                 MeOSPrimaryButton(title: "Preview System Result", icon: "chart.bar.fill") {
+                    model.prepareVisualizationPreview()
                     model.replacePanel(with: .results)
                 }
                 .accessibilityHint("Shows the reusable results presentation without completing a mission")
@@ -98,15 +99,18 @@ struct ResultsPanel: View {
             onClose: model.closePanel
         ) {
             VStack(alignment: .leading, spacing: MeOSSpace.md) {
-                HStack(spacing: MeOSSpace.sm) {
-                    MetricTile(label: "Completed", value: "0", icon: "checkmark.circle")
-                    MetricTile(label: "Queue", value: "Ready", icon: "rectangle.stack")
-                    MetricTile(label: "Latency", value: "—", icon: "timer")
+                if let run = model.visualizationRun {
+                    SimulationVisualizationView(run: run, forceReduceMotion: model.forceReduceMotion)
+                } else {
+                    HStack(spacing: MeOSSpace.sm) {
+                        MetricTile(label: "Completed", value: "0", icon: "checkmark.circle")
+                        MetricTile(label: "Queue", value: "Empty", icon: "rectangle.stack")
+                        MetricTile(label: "Latency", value: "—", icon: "timer")
+                    }
+                    StatusBadge(text: "Stable empty state", kind: .ready)
+                    section("What happened", text: "No workload has run yet, so the engine has produced no events or metrics.", icon: "info.circle")
+                    section("Why it happened", text: "Empty input remains explicit; the visualizer never invents request activity.", icon: "lightbulb")
                 }
-                StatusBadge(text: "Preview only", kind: .attention)
-                section("What happened", text: "No workload has run yet, so the engine has produced no metrics.", icon: "info.circle")
-                section("Why it happened", text: "Results are calculated from simulation events. Empty input remains an explicit empty state.", icon: "lightbulb")
-                section("Permitted actions", text: "Return to the laboratory or retry when a mission workload is available.", icon: "arrow.triangle.2.circlepath")
                 MeOSPrimaryButton(title: "Return to Laboratory", icon: "arrow.uturn.backward") {
                     model.closePanel()
                 }

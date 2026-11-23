@@ -531,6 +531,7 @@ struct SimulationEngine: Sendable {
         case .assigned: 5
         case .cacheHit, .cacheMiss, .cacheInvalidated, .databaseOperationStarted: 6
         case .phaseStarted, .cpuAcquired: 7
+        case .unknown: 8
         }
     }
 
@@ -584,6 +585,8 @@ struct SimulationEngine: Sendable {
             case .rejected:
                 eventStatuses[requestID] = .rejected
                 terminalTimes.append(event.timestampMilliseconds)
+            case .unknown:
+                break
             default:
                 break
             }

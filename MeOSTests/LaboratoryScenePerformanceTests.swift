@@ -33,4 +33,22 @@ final class LaboratoryScenePerformanceTests: XCTestCase {
             }
         }
     }
+
+    func testSimulationSceneReusesNodesAndHasNoPhysicsDrivenOutcomes() throws {
+        let workload = (1...10).map { Request(id: RequestID(rawValue: "request-\($0)")) }
+        let configuration = SimulationConfiguration(workerCount: 4)
+        let result = try SimulationEngine().run(initialState: GameState(), workload: workload, configuration: configuration)
+        var session = SimulationPresentationSession(events: result.orderedEvents, workload: workload, configuration: configuration)
+        XCTAssertTrue(session.play())
+        session.finishWithoutInterpolation()
+
+        let scene = SimulationScene()
+        scene.render(session.renderState, reduceMotion: false)
+        let firstNodes = scene.children
+        scene.render(session.renderState, reduceMotion: true)
+
+        XCTAssertEqual(scene.children.count, firstNodes.count)
+        XCTAssertTrue(zip(scene.children, firstNodes).allSatisfy { $0 === $1 })
+        XCTAssertNil(scene.physicsWorld.contactDelegate)
+    }
 }

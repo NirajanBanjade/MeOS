@@ -301,6 +301,8 @@ enum SimulationEventPayload: Codable, Equatable, Sendable {
     case completed
     case failed(reason: SimulationFailureReason)
     case rejected(reason: SimulationRejectionReason)
+    /// Forward-compatible presentation fallback. The engine never emits this case.
+    case unknown(identifier: String)
 }
 
 struct SimulationEvent: Codable, Equatable, Sendable {

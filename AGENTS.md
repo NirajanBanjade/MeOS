@@ -2,7 +2,7 @@
 
 ## Mission
 
-Build the MeOS iPad app described by `PRD.md` and the ordered specifications in
+Build the MeOS app described by `PRD.md` and the ordered specifications in
 `features/`. Work autonomously from the earliest incomplete feature whose
 dependencies are satisfied. Do not ask which feature to implement next when the
 repository contains enough evidence to decide.

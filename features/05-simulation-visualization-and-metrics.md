@@ -67,9 +67,21 @@ Turn simulation events into accurate, polished animations, charts, timelines, ar
 
 ## Complete When
 
-- [ ] Every visible system behavior maps to a real event or state.
-- [ ] Charts, timelines, architecture, metrics, and explanations agree.
-- [ ] Rendering cannot mutate simulation or mission outcomes.
-- [ ] Reduced Motion and non-color-only alternatives are complete.
-- [ ] Projection, integration, accessibility, and performance tests pass.
+- [x] Every visible system behavior maps to a real event or state.
+  Evidence: `SimulationEventProjector`, `SimulationScene`, and
+  `SimulationVisualizationTests.everyEventPayloadProjectsToVisibleState` cover
+  every event payload, including a safe unknown-event fallback.
+- [x] Charts, timelines, architecture, metrics, and explanations agree.
+  Evidence: `VisualizationViews` consumes one projected run, while
+  `SimulationMetricFormatter` formats the engine result without recomputation;
+  representative-run and exact-metric tests pass.
+- [x] Rendering cannot mutate simulation or mission outcomes.
+  Evidence: visualization owns only projected presentation state, SpriteKit has
+  no simulation/mission engine, and playback lifecycle/determinism tests pass.
+- [x] Reduced Motion and non-color-only alternatives are complete.
+  Evidence: travel becomes immediate highlights under Reduce Motion, statuses
+  use text and icons, and the accessible event sequence and UI test pass.
+- [x] Projection, integration, accessibility, and performance tests pass.
+  Evidence: `swift test` passes 47 tests; Xcode unit tests pass 50 tests; the
+  complete UI target passes 8 tests; the generic iPad simulator build succeeds.
 

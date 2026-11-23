@@ -119,5 +119,35 @@ final class MeOSUITests: XCTestCase {
         XCTAssertEqual(cpu.value as? String, "Unlocks in Mission 2")
         XCTAssertFalse(cpu.isEnabled)
     }
+
+    func testVisualizationControlsMetricsAndReducedMotionAlternative() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-UI_TEST_FRESH_START", "-UI_TEST_REDUCE_MOTION"]
+        app.launch()
+        app.buttons["home.primaryAction"].tap()
+        app.buttons["game.server"].tap()
+        if app.buttons["teaching.continue.server"].waitForExistence(timeout: 2) {
+            app.buttons["teaching.continue.server"].tap()
+        }
+        app.buttons["system.primaryAction"].tap()
+
+        let play = app.buttons["visualization.play"]
+        XCTAssertTrue(play.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Reduced Motion: travel is replaced by highlights; event order and outcomes are unchanged."].exists)
+        XCTAssertTrue(app.staticTexts["Completed"].exists)
+
+        play.doubleTap()
+        XCTAssertTrue(app.buttons["visualization.reset"].waitForExistence(timeout: 2))
+        app.buttons["visualization.reset"].tap()
+        XCTAssertTrue(play.isEnabled)
+
+        let scroll = app.scrollViews["panel.scroll"]
+        let timeline = app.descendants(matching: .any)["Scheduling timeline"]
+        for _ in 0..<3 where !timeline.exists { scroll.swipeUp() }
+        XCTAssertTrue(timeline.waitForExistence(timeout: 2))
+        let architecture = app.descendants(matching: .any)["System architecture"]
+        for _ in 0..<3 where !architecture.exists { scroll.swipeUp() }
+        XCTAssertTrue(architecture.waitForExistence(timeout: 2))
+    }
 }
 
