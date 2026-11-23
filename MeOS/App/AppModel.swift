@@ -20,6 +20,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var activeMission = 1
     @Published private(set) var missionEngine = MissionEngine()
     @Published private(set) var visualizationRun: VisualizationRun?
+    @Published private(set) var sequentialMission = SequentialMissionRun()
+    @Published private(set) var workerMission = WorkerMissionRun()
 
     var currentObjective: String {
         missionEngine.currentDefinition?.objectives.first?.text
@@ -149,6 +151,118 @@ final class AppModel: ObservableObject {
         try missionEngine.start()
     }
 
+    func receiveSequentialRequestCards(count: Int = 5) throws {
+        guard let definition = missionEngine.catalog.definition(for: .sequentialProcessing) else {
+            throw MissionEngineError.missionUnavailable(.sequentialProcessing)
+        }
+        try sequentialMission.receiveCards(count: count, definition: definition)
+    }
+
+    @discardableResult
+    func startSequentialServer() throws -> Bool {
+        guard activeMission == MissionID.sequentialProcessing.rawValue,
+              let definition = missionEngine.catalog.definition(for: .sequentialProcessing) else {
+            throw MissionEngineError.missionUnavailable(.sequentialProcessing)
+        }
+        guard sequentialMission.canStart else {
+            if sequentialMission.workload.isEmpty { throw SequentialMissionError.emptyQueue }
+            return false
+        }
+        if missionEngine.session == nil {
+            try missionEngine.start(.sequentialProcessing)
+        }
+        let started = try sequentialMission.start(definition: definition)
+        if started { try missionEngine.markObjective("run-five") }
+        return started
+    }
+
+    @discardableResult
+    func playSequentialPresentation() -> Bool { sequentialMission.play() }
+
+    func pauseSequentialPresentation() { sequentialMission.pause() }
+
+    func setSequentialPresentationSpeed(_ speed: PresentationSpeed) {
+        sequentialMission.setSpeed(speed)
+    }
+
+    @discardableResult
+    func presentNextSequentialEvent() -> SimulationEvent? {
+        sequentialMission.presentNextEvent()
+    }
+
+    func finishSequentialPresentation() { sequentialMission.finishPresentation() }
+
+    @discardableResult
+    func answerSequentialCause(_ cause: SequentialWaitCause) throws -> Bool {
+        guard try sequentialMission.answer(cause) else { return false }
+        try missionEngine.markObjective("identify-queue")
+        guard let result = sequentialMission.run?.result else {
+            throw SequentialMissionError.runNotFinished
+        }
+        _ = try completeCurrentMission(using: MissionEvaluationContext(
+            result: result,
+            facts: ["queue-identified"]
+        ))
+        return true
+    }
+
+    func resetSequentialMission() throws {
+        sequentialMission.reset()
+        if missionEngine.session != nil { try missionEngine.retry() }
+        persistCheckpoint()
+    }
+
+    func selectWorkerCount(_ count: Int) throws {
+        try workerMission.selectWorkerCount(count)
+    }
+
+    @discardableResult
+    func startWorkerRun() throws -> Bool {
+        guard activeMission == MissionID.workerConcurrency.rawValue,
+              let definition = missionEngine.catalog.definition(for: .workerConcurrency) else {
+            throw MissionEngineError.missionUnavailable(.workerConcurrency)
+        }
+        if missionEngine.session?.missionID != .workerConcurrency {
+            try missionEngine.start(.workerConcurrency)
+        }
+        return try workerMission.start(definition: definition)
+    }
+
+    @discardableResult
+    func playWorkerPresentation() -> Bool { workerMission.play() }
+
+    func pauseWorkerPresentation() { workerMission.pause() }
+
+    @discardableResult
+    func presentNextWorkerEvent() -> SimulationEvent? { workerMission.presentNextEvent() }
+
+    @discardableResult
+    func finishWorkerPresentation() throws -> Bool {
+        let wasBaseline = workerMission.comparisonRun == nil
+        let won = workerMission.finishPresentation()
+        if wasBaseline, workerMission.stage == .configure {
+            try missionEngine.markObjective("compare-baseline")
+        }
+        if won {
+            try missionEngine.markObjective("meet-worker-target")
+            guard let result = workerMission.comparisonRun?.result else {
+                throw MissionEngineError.victoryRequirementsNotMet
+            }
+            _ = try completeCurrentMission(using: MissionEvaluationContext(
+                result: result,
+                workerCount: workerMission.selectedWorkerCount,
+                resourceCost: workerMission.resourceCost
+            ))
+        }
+        return won
+    }
+
+    func resetWorkerMission() throws {
+        workerMission.reset()
+        if missionEngine.session?.missionID == .workerConcurrency { try missionEngine.retry() }
+        persistCheckpoint()
+    }
+
     func markMissionObjective(_ objectiveID: String) throws {
         try missionEngine.markObjective(objectiveID)
     }
@@ -180,6 +294,8 @@ final class AppModel: ObservableObject {
     }
 
     func handleBackgrounding() {
+        sequentialMission.pause()
+        workerMission.pause()
         missionEngine.prepareForBackground()
         persistCheckpoint()
     }
@@ -261,6 +377,10 @@ final class AppModel: ObservableObject {
     private func openDestination(for object: LaboratoryObject) {
         if object.id == .systemEngineer {
             presentedPanel = .mission
+        } else if object.id == .server && activeMission == MissionID.sequentialProcessing.rawValue {
+            presentedPanel = .sequentialMission
+        } else if object.id == .server && activeMission == MissionID.workerConcurrency.rawValue {
+            presentedPanel = .workerMission
         } else if let component = object.component {
             presentedPanel = .system(component)
         }

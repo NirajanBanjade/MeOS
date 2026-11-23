@@ -54,6 +54,306 @@ struct MissionEvaluationContext: Equatable, Sendable {
     }
 }
 
+enum SequentialMissionStage: String, Equatable, Sendable {
+    case empty, ready, running, identifyCause, completed
+}
+
+enum SequentialWaitCause: String, CaseIterable, Equatable, Identifiable, Sendable {
+    case queueWhileWorkerBusy
+    case cpuWasMissing
+    case requestsWereBroken
+
+    var id: String { rawValue }
+
+    var text: String {
+        switch self {
+        case .queueWhileWorkerBusy: "The request queue grew while the only worker was busy."
+        case .cpuWasMissing: "The server did not have a CPU."
+        case .requestsWereBroken: "The later requests were broken."
+        }
+    }
+}
+
+enum SequentialMissionError: Error, Equatable, Sendable {
+    case negativeRequestCount(Int)
+    case emptyQueue
+    case runAlreadyStarted
+    case runNotFinished
+}
+
+/// Mission 1's transient, event-driven presentation state. The simulator owns
+/// outcomes; this value only guards the scripted interaction and projects its
+/// immutable event log so closing a panel cannot restart or duplicate a run.
+struct SequentialMissionRun: Equatable, Sendable {
+    private(set) var stage: SequentialMissionStage = .empty
+    private(set) var workload: [Request] = []
+    private(set) var run: VisualizationRun?
+    private(set) var presentation: SimulationPresentationSession?
+    private(set) var startCount = 0
+    private(set) var feedback = "Queue empty"
+
+    var canStart: Bool { stage == .ready && !workload.isEmpty && run == nil }
+    var isStartDisabled: Bool { !canStart }
+    var renderState: SimulationRenderState? { presentation?.renderState }
+
+    mutating func receiveCards(count: Int, definition: MissionDefinition) throws {
+        guard count >= 0 else { throw SequentialMissionError.negativeRequestCount(count) }
+        guard run == nil else { throw SequentialMissionError.runAlreadyStarted }
+        if count == definition.workload.count {
+            workload = definition.workload
+        } else if count == 0 {
+            workload = []
+        } else {
+            workload = (1...count).map { Request(id: RequestID(rawValue: String(format: "request-%02d", $0))) }
+        }
+        stage = workload.isEmpty ? .empty : .ready
+        feedback = workload.isEmpty ? "Queue empty" : "\(workload.count) uniquely identified request cards ready."
+    }
+
+    @discardableResult
+    mutating func start(definition: MissionDefinition, engine: SimulationEngine = SimulationEngine()) throws -> Bool {
+        guard !workload.isEmpty else {
+            feedback = "Queue empty"
+            throw SequentialMissionError.emptyQueue
+        }
+        guard canStart else { return false }
+        let result = try engine.run(
+            initialState: definition.baselineState,
+            workload: workload,
+            configuration: definition.configuration
+        )
+        let visualization = VisualizationRun(
+            workload: workload,
+            configuration: definition.configuration,
+            result: result,
+            baselineResult: nil
+        )
+        run = visualization
+        presentation = SimulationPresentationSession(
+            events: result.orderedEvents,
+            workload: workload,
+            configuration: definition.configuration
+        )
+        startCount += 1
+        stage = .running
+        feedback = "Server running. Follow each request through the event log."
+        return true
+    }
+
+    @discardableResult
+    mutating func play() -> Bool {
+        guard stage == .running, var presentation else { return false }
+        let started = presentation.play()
+        self.presentation = presentation
+        return started
+    }
+
+    mutating func pause() {
+        guard var presentation else { return }
+        presentation.pause()
+        self.presentation = presentation
+    }
+
+    mutating func setSpeed(_ speed: PresentationSpeed) {
+        guard var presentation else { return }
+        presentation.setSpeed(speed)
+        self.presentation = presentation
+    }
+
+    @discardableResult
+    mutating func presentNextEvent() -> SimulationEvent? {
+        guard var presentation else { return nil }
+        let event = presentation.presentNext()
+        if presentation.lifecycle == .completed {
+            stage = .identifyCause
+            feedback = "All requests completed. Identify why later requests waited."
+        }
+        self.presentation = presentation
+        return event
+    }
+
+    mutating func finishPresentation() {
+        guard var presentation else { return }
+        if presentation.lifecycle == .ready { _ = presentation.play() }
+        presentation.finishWithoutInterpolation()
+        self.presentation = presentation
+        if presentation.lifecycle == .completed {
+            stage = .identifyCause
+            feedback = "All requests completed. Identify why later requests waited."
+        }
+    }
+
+    @discardableResult
+    mutating func answer(_ cause: SequentialWaitCause) throws -> Bool {
+        guard stage == .identifyCause else { throw SequentialMissionError.runNotFinished }
+        guard cause == .queueWhileWorkerBusy else {
+            feedback = "Not quite. The event history shows later requests queued while the single worker was occupied."
+            return false
+        }
+        stage = .completed
+        feedback = "Correct. A sequential server handles one request at a time, so later arrivals wait in its queue."
+        return true
+    }
+
+    mutating func reset() {
+        run = nil
+        presentation = nil
+        stage = workload.isEmpty ? .empty : .ready
+        feedback = workload.isEmpty ? "Queue empty" : "Same request cards restored for a deterministic retry."
+    }
+}
+
+enum WorkerMissionStage: String, Equatable, Sendable {
+    case baselineReady, running, configure, completed
+}
+
+enum WorkerMissionError: Error, Equatable, Sendable {
+    case workerCountOutOfRange(Int)
+    case baselineRequired
+    case runInProgress
+}
+
+/// Mission 2 keeps the baseline immutable and changes only worker count for
+/// comparisons. Outcomes remain owned by the deterministic simulator.
+struct WorkerMissionRun: Equatable, Sendable {
+    private(set) var stage: WorkerMissionStage = .baselineReady
+    private(set) var selectedWorkerCount = 1
+    private(set) var baselineRun: VisualizationRun?
+    private(set) var comparisonRun: VisualizationRun?
+    private(set) var presentation: SimulationPresentationSession?
+    private(set) var feedback = "Run the saved one-worker workload before changing workers."
+
+    var currentRun: VisualizationRun? { comparisonRun ?? baselineRun }
+    var renderState: SimulationRenderState? { presentation?.renderState }
+    var resourceCost: Int { selectedWorkerCount }
+    var canConfigure: Bool { stage == .configure }
+    var canRun: Bool { stage == .baselineReady || stage == .configure }
+
+    mutating func selectWorkerCount(_ count: Int) throws {
+        guard (0...4).contains(count) else { throw WorkerMissionError.workerCountOutOfRange(count) }
+        guard stage != .running else {
+            feedback = "This run is active. Finish it, then choose workers for the next reset."
+            throw WorkerMissionError.runInProgress
+        }
+        guard baselineRun != nil else {
+            feedback = "Run the one-worker baseline first so the comparison stays fair."
+            throw WorkerMissionError.baselineRequired
+        }
+        selectedWorkerCount = count
+        comparisonRun = nil
+        presentation = nil
+        feedback = count > 2
+            ? "\(count) workers cost \(count) units, above the two-unit victory budget; the run remains observable."
+            : "\(count) worker\(count == 1 ? "" : "s") selected for the identical workload."
+    }
+
+    @discardableResult
+    mutating func start(
+        definition: MissionDefinition,
+        engine: SimulationEngine = SimulationEngine()
+    ) throws -> Bool {
+        guard canRun else { return false }
+        if baselineRun == nil, selectedWorkerCount != 1 { throw WorkerMissionError.baselineRequired }
+
+        var configuration = definition.configuration
+        configuration.workerCount = selectedWorkerCount
+        let result = try engine.run(
+            initialState: definition.baselineState,
+            workload: definition.workload,
+            configuration: configuration
+        )
+        let run = VisualizationRun(
+            workload: definition.workload,
+            configuration: configuration,
+            result: result,
+            baselineResult: baselineRun?.result
+        )
+        if baselineRun == nil { baselineRun = run }
+        else { comparisonRun = run }
+        presentation = SimulationPresentationSession(
+            events: result.orderedEvents,
+            workload: definition.workload,
+            configuration: configuration
+        )
+        stage = .running
+        feedback = "Running \(selectedWorkerCount) worker\(selectedWorkerCount == 1 ? "" : "s") from the same request IDs, phases, arrivals, and seed."
+        return true
+    }
+
+    @discardableResult
+    mutating func play() -> Bool {
+        guard var presentation else { return false }
+        let started = presentation.play()
+        self.presentation = presentation
+        return started
+    }
+
+    mutating func pause() {
+        guard var presentation else { return }
+        presentation.pause()
+        self.presentation = presentation
+    }
+
+    @discardableResult
+    mutating func presentNextEvent() -> SimulationEvent? {
+        guard var presentation else { return nil }
+        let event = presentation.presentNext()
+        self.presentation = presentation
+        if presentation.lifecycle == .completed { evaluateFinishedRun() }
+        return event
+    }
+
+    @discardableResult
+    mutating func finishPresentation() -> Bool {
+        guard var presentation else { return false }
+        if presentation.lifecycle == .ready { _ = presentation.play() }
+        presentation.finishWithoutInterpolation()
+        self.presentation = presentation
+        guard presentation.lifecycle == .completed else { return false }
+        evaluateFinishedRun()
+        return stage == .completed
+    }
+
+    mutating func reset() {
+        stage = .baselineReady
+        selectedWorkerCount = 1
+        baselineRun = nil
+        comparisonRun = nil
+        presentation = nil
+        feedback = "Exact Mission 1 request IDs, arrivals, phases, and seed restored for a fair retry."
+    }
+
+    private mutating func evaluateFinishedRun() {
+        guard let run = currentRun else { return }
+        if comparisonRun == nil {
+            stage = .configure
+            feedback = "Baseline saved: 1 worker, 5,000 ms makespan, and 3,000 ms average latency. Now compare another worker count."
+            return
+        }
+
+        let metrics = run.result.metrics
+        if selectedWorkerCount == 2,
+           resourceCost <= 2,
+           metrics.completed == 5,
+           metrics.completionTimeMilliseconds <= 3_200 {
+            stage = .completed
+            feedback = "Target met. Two workers overlap waiting, while one modeled CPU serializes CPU phases."
+        } else {
+            stage = .configure
+            switch selectedWorkerCount {
+            case 0:
+                feedback = "No workers are available, so all accepted requests remain queued and no progress occurs."
+            case 1:
+                feedback = "One worker reproduces the baseline; there is no added concurrency."
+            case 3...4:
+                feedback = "More workers show diminishing returns because one modeled CPU serializes CPU work; \(selectedWorkerCount) resource units also exceed the two-unit budget."
+            default:
+                feedback = "This configuration did not meet every measured target."
+            }
+        }
+    }
+}
+
 enum MissionVictoryRule: String, Codable, Equatable, Sendable {
     case sequentialQueueUnderstood
     case twoWorkerTarget

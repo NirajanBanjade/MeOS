@@ -61,6 +61,8 @@ enum AppScreen: Equatable, Sendable {
 
 enum AppPanel: Identifiable, Equatable, Sendable {
     case mission
+    case sequentialMission
+    case workerMission
     case system(ComponentKind)
     case results
     case pause
@@ -73,6 +75,8 @@ enum AppPanel: Identifiable, Equatable, Sendable {
     var id: String {
         switch self {
         case .mission: "mission"
+        case .sequentialMission: "sequential-mission"
+        case .workerMission: "worker-mission"
         case .system(let component): "system-\(component.rawValue)"
         case .results: "results"
         case .pause: "pause"

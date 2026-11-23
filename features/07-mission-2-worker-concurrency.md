@@ -53,9 +53,13 @@ Teach how workers overlap waiting phases while modeled CPU capacity limits CPU-i
 
 ## Complete When
 
-- [ ] Baseline and comparison always use identical workload inputs.
-- [ ] Two workers meet the stated target within budget.
-- [ ] Invalid and non-useful configurations produce accurate feedback.
-- [ ] Mission 3 unlocks exactly once.
-- [ ] Simulation, comparison, and UI tests pass.
-
+- [x] Baseline and comparison always use identical workload inputs.
+  - Evidence: `WorkerMissionRun.start` reuses `MissionCatalog` workload and seed; `workerMissionEdges` and `Mission 2 compares the identical fixture and unlocks Mission 3 exactly once` pass.
+- [x] Two workers meet the stated target within budget.
+  - Evidence: the two-worker fixture reports 3,000 ms makespan and 1,960 ms average latency; focused tests in `AppModelTests`, `MissionEngineTests`, and `SimulationEngineTests` pass.
+- [x] Invalid and non-useful configurations produce accurate feedback.
+  - Evidence: `WorkerMissionRun` rejects -1 and 5, safely reconciles zero workers, and explains CPU and budget limits for three and four workers; `workerMissionEdges` passes.
+- [x] Mission 3 unlocks exactly once.
+  - Evidence: `MissionEngine.complete` remains idempotent and the Mission 2 UI test reaches "Mission 3 · Database Storage"; the dedicated UI test passes.
+- [x] Simulation, comparison, and UI tests pass.
+  - Evidence: `swift test` passes; iPad build succeeded; `testMission2BaselineComparisonRetryVictoryAndMission3Unlock` passes on iPad Pro 13-inch (M5).

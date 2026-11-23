@@ -42,6 +42,8 @@ struct RootView: View {
     private func panelView(_ panel: AppPanel) -> some View {
         switch panel {
         case .mission: MissionPanel(model: model)
+        case .sequentialMission: SequentialMissionPanel(model: model)
+        case .workerMission: WorkerMissionPanel(model: model)
         case .system(let component): SystemPanel(model: model, component: component)
         case .results: ResultsPanel(model: model)
         case .pause: PausePanel(model: model)

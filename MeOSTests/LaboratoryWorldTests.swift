@@ -114,10 +114,10 @@ struct LaboratoryAppModelTests {
         #expect(model.playerPosition == original)
 
         model.continueFromTeaching(.server)
-        #expect(model.presentedPanel == .system(.server))
+        #expect(model.presentedPanel == .sequentialMission)
         model.closePanel()
         model.requestInteraction(with: .server, accessible: true)
-        #expect(model.presentedPanel == .system(.server))
+        #expect(model.presentedPanel == .sequentialMission)
         #expect(model.playerPosition == original)
     }
 

@@ -53,9 +53,14 @@ Teach that a single worker processes one request at a time and later requests wa
 
 ## Complete When
 
-- [ ] The full mission is playable from briefing to results.
-- [ ] Every visual transition is traceable to an engine event.
-- [ ] Victory requires both execution and understanding.
-- [ ] Mission 2 unlocks exactly once.
-- [ ] All fixture, edge-case, and UI tests pass.
+- [x] The full mission is playable from briefing to results.
+  - Evidence: `SequentialMissionPanel`, `AppModel`, and `SequentialMissionRun`; the iPad UI path from Server inspection through Mission 2 unlock passed.
+- [x] Every visual transition is traceable to an engine event.
+  - Evidence: Mission 1 renders `SimulationPresentationSession.renderState` through `SimulationScene` and `SchedulingTimelineView`; `sequentialMissionEdges` verifies the full timeline against phase events.
+- [x] Victory requires both execution and understanding.
+  - Evidence: `SequentialMissionRun.answer` rejects distractors, and `MissionVictoryRule.sequentialQueueUnderstood` requires five completions plus the queue fact; focused unit and UI tests passed.
+- [x] Mission 2 unlocks exactly once.
+  - Evidence: `sequentialMissionHappyPath` verifies one completion/unlock despite repeated Start and answer commands; centralized `MissionEngine.complete` remains idempotent.
+- [x] All fixture, edge-case, and UI tests pass.
+  - Evidence: `swift test` passed 49/49; Xcode iPad unit/integration/performance passed 52/52; the full nine-test UI target passed on an iPad Pro 13-inch (M5), including the new Mission 1 end-to-end path; generic iPad simulator build succeeded.
 
