@@ -22,6 +22,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var visualizationRun: VisualizationRun?
     @Published private(set) var sequentialMission = SequentialMissionRun()
     @Published private(set) var workerMission = WorkerMissionRun()
+    @Published private(set) var databaseMission = DatabaseMissionRun()
+    @Published private(set) var infrastructureMission = InfrastructureMissionRun()
+    @Published private(set) var diagnosticMission = DiagnosticMissionRun()
 
     var currentObjective: String {
         missionEngine.currentDefinition?.objectives.first?.text
@@ -263,6 +266,148 @@ final class AppModel: ObservableObject {
         persistCheckpoint()
     }
 
+    func installDatabase() throws {
+        let definition = try databaseDefinition()
+        try ensureDatabaseSession()
+        databaseMission.install()
+        try updateConfiguredComponents(databaseComponents(connected: false))
+        if definition.id != .databaseStorage { throw MissionEngineError.missionUnavailable(.databaseStorage) }
+    }
+
+    func connectDatabase() throws {
+        try ensureDatabaseSession()
+        try databaseMission.connect()
+        try updateConfiguredComponents(databaseComponents(connected: true))
+    }
+
+    @discardableResult
+    func writeDatabaseRecord(key: String, value: String) throws -> SimulationResult {
+        try ensureDatabaseSession()
+        let result = try databaseMission.write(key: key, value: value)
+        if databaseMission.didWriteScriptedRecord { try missionEngine.markObjective("store-record") }
+        persistCheckpoint()
+        return result
+    }
+
+    @discardableResult
+    func readDatabaseRecord(key: String) throws -> SimulationResult {
+        try ensureDatabaseSession()
+        let result = try databaseMission.read(key: key)
+        if databaseMission.didReadScriptedRecord { try missionEngine.markObjective("retrieve-record") }
+        persistCheckpoint()
+        return result
+    }
+
+    @discardableResult
+    func runDatabaseWorkload() throws -> VisualizationRun {
+        let definition = try databaseDefinition()
+        try ensureDatabaseSession()
+        let run = try databaseMission.runConnectedWorkload(definition: definition)
+        if run.result.metrics.completed == definition.workload.count,
+           run.result.metrics.failed == 0 {
+            try missionEngine.markObjective("run-connected")
+        }
+        if databaseMission.isComplete {
+            _ = try completeCurrentMission(using: MissionEvaluationContext(
+                result: run.result,
+                facts: ["database-installed", "database-connected", "record-matched", "workload-completed"]
+            ))
+        } else {
+            persistCheckpoint()
+        }
+        return run
+    }
+
+    func resetDatabaseMission() throws {
+        let definition = try databaseDefinition()
+        databaseMission.reset(to: definition)
+        if missionEngine.session?.missionID == .databaseStorage { try missionEngine.retry() }
+        try updateConfiguredComponents([])
+    }
+
+    @discardableResult
+    func runInfrastructureWorkload() throws -> VisualizationRun {
+        let definition = try infrastructureDefinition()
+        try ensureInfrastructureSession()
+        let wasBaseline = infrastructureMission.baselineRun == nil
+        let run = try infrastructureMission.run(definition: definition)
+        if wasBaseline {
+            try missionEngine.markObjective("measure-baseline")
+        } else if infrastructureMission.isVictorious {
+            try missionEngine.markObjective("meet-scaling-target")
+            _ = try completeCurrentMission(using: MissionEvaluationContext(
+                result: run.result,
+                resourceCost: infrastructureMission.resourceCost
+            ))
+        }
+        try updateConfiguredComponents(run.configuration.nodes)
+        return run
+    }
+
+    func selectInfrastructureUpgrade(_ upgrade: InfrastructureUpgrade) throws {
+        try ensureInfrastructureSession()
+        try infrastructureMission.select(upgrade)
+    }
+
+    func resetInfrastructureMission() throws {
+        _ = try infrastructureDefinition()
+        infrastructureMission.reset()
+        if missionEngine.session?.missionID == .infrastructureScaling { try missionEngine.retry() }
+        try updateConfiguredComponents([])
+    }
+
+    @discardableResult
+    func measureDiagnosticBaseline() throws -> VisualizationRun {
+        let definition = try diagnosticDefinition()
+        try ensureDiagnosticSession()
+        let run = try diagnosticMission.measureBaseline(definition: definition)
+        try updateConfiguredComponents(run.configuration.nodes)
+        return run
+    }
+
+    func inspectDiagnosticEvidence(_ evidence: DiagnosticEvidence) throws {
+        try ensureDiagnosticSession()
+        try diagnosticMission.inspect(evidence)
+        if diagnosticMission.inspectedEvidence.count >= 2 {
+            try missionEngine.markObjective("inspect-evidence")
+        }
+    }
+
+    func toggleDiagnosticIntervention(_ intervention: DiagnosticIntervention) throws {
+        try ensureDiagnosticSession()
+        try diagnosticMission.toggle(intervention)
+    }
+
+    @discardableResult
+    func verifyDiagnosticRepair() throws -> VisualizationRun {
+        let definition = try diagnosticDefinition()
+        try ensureDiagnosticSession()
+        let run = try diagnosticMission.verify(definition: definition)
+        try updateConfiguredComponents(run.configuration.nodes)
+        if diagnosticMission.isVictorious {
+            try missionEngine.markObjective("verify-repair")
+            _ = try completeCurrentMission(using: MissionEvaluationContext(
+                result: run.result,
+                facts: ["database-bottleneck-improved"],
+                resourceCost: diagnosticMission.resourceCost,
+                inspectedEvidenceCount: diagnosticMission.inspectedEvidence.count
+            ))
+        } else {
+            persistCheckpoint()
+        }
+        return run
+    }
+
+    func resetDiagnosticInterventions() throws {
+        try ensureDiagnosticSession()
+        try diagnosticMission.resetInterventions()
+        if missionEngine.session?.missionID == .systemDiagnostics { try missionEngine.retry() }
+        if diagnosticMission.inspectedEvidence.count >= 2 {
+            try missionEngine.markObjective("inspect-evidence")
+        }
+        persistCheckpoint()
+    }
+
     func markMissionObjective(_ objectiveID: String) throws {
         try missionEngine.markObjective(objectiveID)
     }
@@ -283,6 +428,9 @@ final class AppModel: ObservableObject {
 
     func replayMission(_ id: MissionID) throws {
         try missionEngine.replay(id)
+        if id < .databaseStorage { databaseMission = DatabaseMissionRun() }
+        if id <= .infrastructureScaling { infrastructureMission = InfrastructureMissionRun() }
+        if id <= .systemDiagnostics { diagnosticMission = DiagnosticMissionRun() }
         activeMission = id.rawValue
         updateNearbyObject()
         closePanel()
@@ -359,14 +507,18 @@ final class AppModel: ObservableObject {
     }
 
     private func persistCheckpoint() {
-        try? store.save(ShellSave(
-            hasEnteredLaboratory: hasValidSave,
-            playerPosition: playerPosition,
-            discoveredObjectIDs: laboratoryState.discoveredObjects,
-            engineerIntroductionSeen: laboratoryState.engineerIntroductionSeen,
-            soundEnabled: soundEnabled,
-            missionProgress: missionEngine.durableProgress
-        ))
+        do {
+            try store.save(ShellSave(
+                hasEnteredLaboratory: hasValidSave,
+                playerPosition: playerPosition,
+                discoveredObjectIDs: laboratoryState.discoveredObjects,
+                engineerIntroductionSeen: laboratoryState.engineerIntroductionSeen,
+                soundEnabled: soundEnabled,
+                missionProgress: missionEngine.durableProgress
+            ))
+        } catch {
+            recoveryMessage = "Progress could not be saved. Your latest changes may not survive if MeOS closes."
+        }
     }
 
     private func updateNearbyObject() {
@@ -381,8 +533,68 @@ final class AppModel: ObservableObject {
             presentedPanel = .sequentialMission
         } else if object.id == .server && activeMission == MissionID.workerConcurrency.rawValue {
             presentedPanel = .workerMission
+        } else if activeMission == MissionID.databaseStorage.rawValue,
+                  object.id == .server || object.id == .databaseSlotA {
+            presentedPanel = .databaseMission
+        } else if activeMission == MissionID.infrastructureScaling.rawValue,
+                  [.server, .databaseSlotB, .infrastructureSlotA, .infrastructureSlotB].contains(object.id) {
+            presentedPanel = .infrastructureMission
+        } else if activeMission == MissionID.systemDiagnostics.rawValue,
+                  object.id == .monitoringTerminal {
+            presentedPanel = .diagnosticMission
         } else if let component = object.component {
             presentedPanel = .system(component)
+        }
+    }
+
+    private func databaseDefinition() throws -> MissionDefinition {
+        guard activeMission == MissionID.databaseStorage.rawValue,
+              let definition = missionEngine.catalog.definition(for: .databaseStorage) else {
+            throw MissionEngineError.missionUnavailable(.databaseStorage)
+        }
+        return definition
+    }
+
+    private func ensureDatabaseSession() throws {
+        _ = try databaseDefinition()
+        if missionEngine.session?.missionID != .databaseStorage {
+            try missionEngine.start(.databaseStorage)
+        }
+    }
+
+    private func databaseComponents(connected: Bool) -> [SystemNode] {
+        let database = SystemNode(id: "primary-database", type: .primaryDatabase, capacity: databaseMission.capacity)
+        let server = SystemNode(id: "server", type: .applicationServer, connections: connected ? [database.id] : [])
+        return [server, database]
+    }
+
+    private func infrastructureDefinition() throws -> MissionDefinition {
+        guard activeMission == MissionID.infrastructureScaling.rawValue,
+              let definition = missionEngine.catalog.definition(for: .infrastructureScaling) else {
+            throw MissionEngineError.missionUnavailable(.infrastructureScaling)
+        }
+        return definition
+    }
+
+    private func ensureInfrastructureSession() throws {
+        _ = try infrastructureDefinition()
+        if missionEngine.session?.missionID != .infrastructureScaling {
+            try missionEngine.start(.infrastructureScaling)
+        }
+    }
+
+    private func diagnosticDefinition() throws -> MissionDefinition {
+        guard activeMission == MissionID.systemDiagnostics.rawValue,
+              let definition = missionEngine.catalog.definition(for: .systemDiagnostics) else {
+            throw MissionEngineError.missionUnavailable(.systemDiagnostics)
+        }
+        return definition
+    }
+
+    private func ensureDiagnosticSession() throws {
+        _ = try diagnosticDefinition()
+        if missionEngine.session?.missionID != .systemDiagnostics {
+            try missionEngine.start(.systemDiagnostics)
         }
     }
 
@@ -400,4 +612,3 @@ final class AppModel: ObservableObject {
         )
     }
 }
-

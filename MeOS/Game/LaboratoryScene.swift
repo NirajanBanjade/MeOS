@@ -19,6 +19,8 @@ final class LaboratoryScene: SKScene {
     private var activeMission: Int
     private var playerNode: SKNode?
     private var objectNodes: [LaboratoryObjectID: SKNode] = [:]
+    private var databaseInstalled = false
+    private var databaseConnected = false
 
     weak var worldDelegate: (any LaboratorySceneWorldDelegate)?
 
@@ -51,6 +53,12 @@ final class LaboratoryScene: SKScene {
     func updateMission(_ mission: Int) {
         activeMission = min(max(mission, 1), 5)
         world.objects.forEach(updateAppearance)
+    }
+
+    func updateDatabaseState(installed: Bool, connected: Bool) {
+        databaseInstalled = installed
+        databaseConnected = connected
+        updateDatabaseAppearance()
     }
 
     func setWorldPaused(_ paused: Bool) {
@@ -143,6 +151,7 @@ final class LaboratoryScene: SKScene {
         player.zPosition = 20
         addChild(player)
         playerNode = player
+        updateDatabaseAppearance()
     }
 
     private func makeObjectNode(_ object: LaboratoryObject) -> SKNode {
@@ -198,8 +207,37 @@ final class LaboratoryScene: SKScene {
         let enabled = object.isEnabled(in: activeMission)
         root.alpha = enabled ? 1 : 0.48
         if let status = root.childNode(withName: "status") as? SKLabelNode {
-            status.text = enabled ? "◆ AVAILABLE" : "◇ MISSION \(object.minimumMission)"
+            if enabled && object.id == .monitoringTerminal && activeMission >= MissionID.systemDiagnostics.rawValue {
+                status.text = "◆ ALERT · INVESTIGATE"
+            } else {
+                status.text = enabled ? "◆ AVAILABLE" : "◇ MISSION \(object.minimumMission)"
+            }
         }
+    }
+
+    private func updateDatabaseAppearance() {
+        guard let databaseNode = objectNodes[.databaseSlotA] else { return }
+        if let status = databaseNode.childNode(withName: "status") as? SKLabelNode,
+           activeMission >= MissionID.databaseStorage.rawValue {
+            status.text = databaseConnected
+                ? "◆ INSTALLED · CONNECTED"
+                : (databaseInstalled ? "◇ INSTALLED · DISCONNECTED" : "◇ EMPTY SLOT")
+        }
+        (databaseNode.children.first { $0 is SKShapeNode } as? SKShapeNode)?.strokeColor = databaseConnected ? .systemGreen : (databaseInstalled ? .systemOrange : .systemTeal)
+
+        childNode(withName: "database-cable")?.removeFromParent()
+        guard databaseConnected,
+              let server = objectNodes[.server] else { return }
+        let path = CGMutablePath()
+        path.move(to: server.position)
+        path.addLine(to: databaseNode.position)
+        let cable = SKShapeNode(path: path)
+        cable.name = "database-cable"
+        cable.strokeColor = .systemGreen
+        cable.lineWidth = 6
+        cable.glowWidth = 2
+        cable.zPosition = 2
+        addChild(cable)
     }
 
     private func makeCharacter(color: SKColor, label: String) -> SKNode {

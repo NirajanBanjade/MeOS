@@ -135,7 +135,10 @@ struct MissionEngine: Equatable, Sendable {
     }
 
     mutating func updateConfiguredComponents(_ components: [SystemNode]) throws {
-        guard session?.lifecycle != .running else { throw MissionEngineError.runInProgress }
+        // A mission may be active while its deterministic simulation is at a
+        // stable ready checkpoint. Installation commands are valid there; only
+        // an actually running simulation blocks graph mutation.
+        guard session?.state.simulationLifecycle != .running else { throw MissionEngineError.runInProgress }
         progress.configuredComponents = components
     }
 

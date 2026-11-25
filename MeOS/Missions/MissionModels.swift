@@ -354,6 +354,643 @@ struct WorkerMissionRun: Equatable, Sendable {
     }
 }
 
+enum DatabaseMissionError: Error, Equatable, Sendable {
+    case databaseNotInstalled
+    case emptyKey
+    case emptyValue
+}
+
+enum DatabaseOperationKind: String, Equatable, Sendable {
+    case write = "Write"
+    case read = "Read"
+    case workload = "Mixed workload"
+}
+
+struct DatabaseOperationFeedback: Equatable, Sendable {
+    let kind: DatabaseOperationKind
+    let message: String
+    let icon: String
+    let latencyMilliseconds: SimulationTime
+    let succeeded: Bool
+}
+
+/// Mission 3's transient checkpoint. Each terminal command runs through the
+/// deterministic engine and commits its returned database value atomically.
+struct DatabaseMissionRun: Equatable, Sendable {
+    private(set) var isInstalled = false
+    private(set) var isConnected = false
+    private(set) var database: DatabaseState
+    private(set) var didWriteScriptedRecord = false
+    private(set) var didReadScriptedRecord = false
+    private(set) var workloadRun: VisualizationRun?
+    private(set) var lastOperationRun: VisualizationRun?
+    private(set) var feedback: DatabaseOperationFeedback?
+    private(set) var operationSequence = 0
+
+    init(database: DatabaseState? = nil) {
+        var baseline = database ?? .standard
+        baseline.isConnected = false
+        self.database = baseline
+    }
+
+    var capacityUsed: Int { database.records.count }
+    var capacity: Int { database.capacity }
+    var isComplete: Bool {
+        isInstalled && isConnected && didWriteScriptedRecord && didReadScriptedRecord
+            && workloadRun?.result.metrics.completed == workloadRun?.workload.count
+    }
+
+    mutating func install() {
+        guard !isInstalled else { return }
+        isInstalled = true
+        feedback = DatabaseOperationFeedback(
+            kind: .write,
+            message: "Primary database installed. Connect the Server before sending requests.",
+            icon: "externaldrive.badge.checkmark",
+            latencyMilliseconds: 0,
+            succeeded: true
+        )
+    }
+
+    mutating func connect() throws {
+        guard isInstalled else { throw DatabaseMissionError.databaseNotInstalled }
+        guard !isConnected else { return }
+        isConnected = true
+        database.isConnected = true
+        feedback = DatabaseOperationFeedback(
+            kind: .write,
+            message: "Server connected to the primary database.",
+            icon: "cable.connector",
+            latencyMilliseconds: 0,
+            succeeded: true
+        )
+    }
+
+    @discardableResult
+    mutating func write(key rawKey: String, value rawValue: String, engine: SimulationEngine = SimulationEngine()) throws -> SimulationResult {
+        guard isInstalled else { throw DatabaseMissionError.databaseNotInstalled }
+        let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { throw DatabaseMissionError.emptyKey }
+        guard !value.isEmpty else { throw DatabaseMissionError.emptyValue }
+        operationSequence += 1
+        let request = Request(
+            id: RequestID(rawValue: String(format: "terminal-write-%03d", operationSequence)),
+            type: .databaseWrite(key: key, value: value)
+        )
+        let run = try execute([request], engine: engine)
+        commit(run)
+        let succeeded = run.result.metrics.completed == 1
+        if succeeded, key == "status", value == "online" { didWriteScriptedRecord = true }
+        feedback = feedbackFor(run.result, kind: .write, key: key, value: value)
+        return run.result
+    }
+
+    @discardableResult
+    mutating func read(key rawKey: String, engine: SimulationEngine = SimulationEngine()) throws -> SimulationResult {
+        guard isInstalled else { throw DatabaseMissionError.databaseNotInstalled }
+        let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { throw DatabaseMissionError.emptyKey }
+        operationSequence += 1
+        let request = Request(
+            id: RequestID(rawValue: String(format: "terminal-read-%03d", operationSequence)),
+            type: .databaseRead(key: key, replicaEligible: false)
+        )
+        let run = try execute([request], engine: engine)
+        commit(run)
+        if run.result.orderedEvents.contains(where: {
+            if case .databaseRead("status", "online", false) = $0.payload { return true }
+            return false
+        }) { didReadScriptedRecord = true }
+        feedback = feedbackFor(run.result, kind: .read, key: key, value: nil)
+        return run.result
+    }
+
+    @discardableResult
+    mutating func runConnectedWorkload(definition: MissionDefinition, engine: SimulationEngine = SimulationEngine()) throws -> VisualizationRun {
+        guard isInstalled else { throw DatabaseMissionError.databaseNotInstalled }
+        let run = try execute(definition.workload, seed: definition.configuration.seed, engine: engine)
+        commit(run)
+        workloadRun = run
+        feedback = feedbackFor(run.result, kind: .workload, key: "status", value: nil)
+        return run
+    }
+
+    mutating func reset(to definition: MissionDefinition) {
+        self = DatabaseMissionRun(database: definition.baselineState.database)
+    }
+
+    private func execute(
+        _ workload: [Request],
+        seed: UInt64 = 43_003,
+        engine: SimulationEngine
+    ) throws -> VisualizationRun {
+        let databaseNode = SystemNode(id: "primary-database", type: .primaryDatabase, capacity: database.capacity)
+        let server = SystemNode(
+            id: "server",
+            type: .applicationServer,
+            connections: isConnected ? [databaseNode.id] : []
+        )
+        let configuration = SimulationConfiguration(nodes: [server, databaseNode], seed: seed)
+        let result = try engine.run(
+            initialState: GameState(mission: 3, configuredComponents: isInstalled ? [databaseNode] : [], database: database),
+            workload: workload,
+            configuration: configuration
+        )
+        return VisualizationRun(workload: workload, configuration: configuration, result: result, baselineResult: nil)
+    }
+
+    private mutating func commit(_ run: VisualizationRun) {
+        database = run.result.database
+        database.isConnected = isConnected
+        lastOperationRun = run
+    }
+
+    private func feedbackFor(
+        _ result: SimulationResult,
+        kind: DatabaseOperationKind,
+        key: String,
+        value: String?
+    ) -> DatabaseOperationFeedback {
+        let latency = result.orderedEvents.map(\.timestampMilliseconds).max() ?? 0
+        if let failure = result.finalRequests.compactMap({ request -> SimulationFailureReason? in
+            if case .failed(_, let reason) = request.status { return reason }
+            return nil
+        }).first {
+            let message: String
+            switch failure {
+            case .databaseDisconnected: message = "Connection error: connect the Server to the database first."
+            case .databaseUnavailable: message = "Database unavailable. No record was changed."
+            case .recordNotFound: message = "Record not found."
+            case .storageFull: message = "Storage full: upsert an existing key or remove an entry before inserting another."
+            default: message = "The database request failed: \(failure.rawValue)."
+            }
+            return DatabaseOperationFeedback(kind: kind, message: message, icon: "xmark.octagon.fill", latencyMilliseconds: latency, succeeded: false)
+        }
+
+        let message: String
+        switch kind {
+        case .write:
+            let wasUpsert = result.orderedEvents.contains { if case .databaseWrite(_, _, true) = $0.payload { true } else { false } }
+            message = wasUpsert
+                ? "Updated \(key) = \(value ?? "") by upsert. No extra storage slot was used."
+                : "Created \(key) = \(value ?? "")."
+        case .read:
+            let found = result.orderedEvents.compactMap { event -> String? in
+                if case .databaseRead(_, let value, _) = event.payload { return value }
+                return nil
+            }.first ?? ""
+            message = "Read \(key) = \(found)."
+        case .workload:
+            message = "Connected workload complete: \(result.metrics.databaseWrites) write and \(result.metrics.databaseReads) read."
+        }
+        return DatabaseOperationFeedback(kind: kind, message: message, icon: "checkmark.circle.fill", latencyMilliseconds: latency, succeeded: true)
+    }
+}
+
+enum InfrastructureUpgrade: String, CaseIterable, Equatable, Identifiable, Sendable {
+    case readReplica
+    case cache
+    case secondServer
+    case routing
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .readReplica: "Read Replica"
+        case .cache: "Cache"
+        case .secondServer: "Second App Server"
+        case .routing: "Load-balancing Route"
+        }
+    }
+
+    var cost: Int {
+        switch self {
+        case .readReplica: 3
+        case .cache, .secondServer: 2
+        case .routing: 1
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .readReplica: "Splits eligible reads deterministically between the primary and replica; writes remain primary-only."
+        case .cache: "The first matching read misses and populates the cache; later fresh reads cost 50 ms."
+        case .secondServer: "Adds request-handling capacity, but receives no traffic until a route is connected."
+        case .routing: "Connects incoming traffic to both app servers; the shared primary database can still bottleneck reads."
+        }
+    }
+}
+
+enum InfrastructureMissionStage: String, Equatable, Sendable {
+    case baselineReady, configure, results, completed
+}
+
+enum InfrastructureMissionError: Error, Equatable, Sendable {
+    case baselineRequired
+    case upgradeRequired
+    case insufficientBudget(required: Int, available: Int)
+    case routingRequiresSecondServer
+}
+
+/// Mission 4 changes an explicit system graph, then measures the exact same
+/// ten-request input. The simulator remains the sole owner of outcomes.
+struct InfrastructureMissionRun: Equatable, Sendable {
+    static let budget = 3
+
+    private(set) var stage: InfrastructureMissionStage = .baselineReady
+    private(set) var selectedUpgrades: Set<InfrastructureUpgrade> = []
+    private(set) var baselineRun: VisualizationRun?
+    private(set) var comparisonRun: VisualizationRun?
+    private(set) var feedback = "Measure the ten-read primary-database baseline before buying an upgrade."
+
+    var resourceCost: Int { selectedUpgrades.reduce(0) { $0 + $1.cost } }
+    var availableBudget: Int { Self.budget - resourceCost }
+    var isVictorious: Bool { stage == .completed }
+
+    func canAfford(_ upgrade: InfrastructureUpgrade) -> Bool {
+        selectedUpgrades.contains(upgrade) || upgrade.cost <= availableBudget
+    }
+
+    func unavailableReason(for upgrade: InfrastructureUpgrade) -> String? {
+        if selectedUpgrades.contains(upgrade) { return nil }
+        if upgrade == .routing && !selectedUpgrades.contains(.secondServer) {
+            return "Add the second app server before connecting its route."
+        }
+        guard canAfford(upgrade) else {
+            return "Costs \(upgrade.cost); only \(availableBudget) budget remains."
+        }
+        return nil
+    }
+
+    mutating func select(_ upgrade: InfrastructureUpgrade) throws {
+        guard baselineRun != nil else { throw InfrastructureMissionError.baselineRequired }
+        guard !selectedUpgrades.contains(upgrade) else { return }
+        if upgrade == .routing && !selectedUpgrades.contains(.secondServer) {
+            throw InfrastructureMissionError.routingRequiresSecondServer
+        }
+        guard upgrade.cost <= availableBudget else {
+            throw InfrastructureMissionError.insufficientBudget(required: upgrade.cost, available: availableBudget)
+        }
+        selectedUpgrades.insert(upgrade)
+        comparisonRun = nil
+        stage = .configure
+        feedback = "\(upgrade.title) added for \(upgrade.cost) budget. Run the unchanged workload to measure it."
+    }
+
+    @discardableResult
+    mutating func run(
+        definition: MissionDefinition,
+        engine: SimulationEngine = SimulationEngine()
+    ) throws -> VisualizationRun {
+        if baselineRun == nil {
+            let configuration = configuration(for: [])
+            let result = try engine.run(
+                initialState: definition.baselineState,
+                workload: definition.workload,
+                configuration: configuration
+            )
+            let run = VisualizationRun(workload: definition.workload, configuration: configuration, result: result, baselineResult: nil)
+            baselineRun = run
+            stage = .configure
+            feedback = "Baseline measured: 1,650 ms average latency and 3,000 ms completion time on one serialized primary database."
+            return run
+        }
+
+        guard !selectedUpgrades.isEmpty else { throw InfrastructureMissionError.upgradeRequired }
+        let configuration = configuration(for: selectedUpgrades)
+        let workload = routedWorkload(definition.workload, upgrades: selectedUpgrades)
+        let result = try engine.run(
+            initialState: definition.baselineState,
+            workload: workload,
+            configuration: configuration
+        )
+        let run = VisualizationRun(workload: workload, configuration: configuration, result: result, baselineResult: baselineRun?.result)
+        comparisonRun = run
+        evaluate(result.metrics)
+        return run
+    }
+
+    mutating func reset() {
+        self = InfrastructureMissionRun()
+    }
+
+    private mutating func evaluate(_ metrics: SimulationMetrics) {
+        if resourceCost <= Self.budget,
+           metrics.completed == 10,
+           metrics.failed == 0,
+           metrics.rejected == 0,
+           metrics.averageLatencyMilliseconds <= 1_000 {
+            stage = .completed
+            if selectedUpgrades.contains(.cache) {
+                feedback = "Target met. One database miss populated the cache, then nine 50 ms hits reduced average latency."
+            } else {
+                feedback = "Target met. Eligible reads were split across two independently serialized database nodes."
+            }
+        } else {
+            stage = .results
+            if selectedUpgrades == [.secondServer] {
+                feedback = "The second server received no traffic because no load-balancing route connects it. Reset and try another graph."
+            } else if selectedUpgrades.isSuperset(of: [.secondServer, .routing]) {
+                feedback = "Both servers received routed traffic, but every read still serialized on the same primary database, so latency did not improve."
+            } else {
+                feedback = "This measured graph did not meet the 1,000 ms target. Reset and try another upgrade."
+            }
+        }
+    }
+
+    private func configuration(for upgrades: Set<InfrastructureUpgrade>) -> SimulationConfiguration {
+        let primary = SystemNode(id: "primary-database", type: .primaryDatabase)
+        var serverConnections: [NodeID] = [primary.id]
+        var nodes = [SystemNode(id: "client", type: .client, connections: ["server-1"])]
+
+        if upgrades.contains(.cache) {
+            serverConnections.insert("cache", at: 0)
+            nodes.append(SystemNode(id: "cache", type: .cache, connections: [primary.id]))
+        }
+        if upgrades.contains(.readReplica) {
+            serverConnections.append("replica")
+            nodes.append(SystemNode(id: "replica", type: .readReplica))
+        }
+        nodes.append(SystemNode(id: "server-1", type: .applicationServer, connections: serverConnections))
+        if upgrades.contains(.secondServer) {
+            nodes.append(SystemNode(id: "server-2", type: .applicationServer, connections: serverConnections))
+        }
+        if upgrades.contains(.routing) {
+            nodes[0].connections = ["router"]
+            nodes.append(SystemNode(id: "router", type: .loadBalancer, connections: ["server-1", "server-2"]))
+        }
+        nodes.append(primary)
+
+        return SimulationConfiguration(
+            nodes: nodes,
+            cacheEnabled: upgrades.contains(.cache),
+            replicaEnabled: upgrades.contains(.readReplica),
+            databaseRoutingPolicy: upgrades.contains(.readReplica) ? .alternatePrimaryAndReplica : .primaryOnly,
+            seed: 44_004
+        )
+    }
+
+    private func routedWorkload(_ workload: [Request], upgrades: Set<InfrastructureUpgrade>) -> [Request] {
+        guard upgrades.isSuperset(of: [.secondServer, .routing]) else { return workload }
+        return workload.enumerated().map { index, request in
+            var routed = request
+            routed.destinationNodeID = index.isMultiple(of: 2) ? "server-1" : "server-2"
+            return routed
+        }
+    }
+}
+
+enum DiagnosticEvidence: String, CaseIterable, Equatable, Identifiable, Sendable {
+    case cpu, workerQueue, database, responseAndArchitecture
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .cpu: "CPU pressure"
+        case .workerQueue: "Worker queue"
+        case .database: "Database load and latency"
+        case .responseAndArchitecture: "Response and architecture"
+        }
+    }
+}
+
+enum DiagnosticIntervention: String, CaseIterable, Equatable, Identifiable, Sendable {
+    case increasedWorkers, increasedServerCapacity, readReplica, cache
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .increasedWorkers: "Increase Workers"
+        case .increasedServerCapacity: "Increase App-Server Capacity"
+        case .readReplica: "Add Read Replica"
+        case .cache: "Add Cache"
+        }
+    }
+
+    var cost: Int {
+        switch self {
+        case .increasedWorkers, .increasedServerCapacity: 1
+        case .readReplica, .cache: 2
+        }
+    }
+}
+
+enum DiagnosticMissionStage: String, Equatable, Sendable {
+    case alert, investigate, configure, results, completed
+}
+
+enum DiagnosticMissionError: Error, Equatable, Sendable {
+    case baselineRequired
+    case evidenceRequired
+    case interventionRequired
+}
+
+struct DiagnosticSnapshot: Equatable, Sendable {
+    let cpuUtilization: Double
+    let queuedRequests: Int
+    let queueWaitMilliseconds: SimulationTime
+    let databaseOperations: Int
+    let databaseLatencyMilliseconds: Double
+    let averageResponseMilliseconds: Double
+    let failures: Int
+    let architecture: [SystemNode]
+
+    init(result: SimulationResult, architecture: [SystemNode]) {
+        cpuUtilization = result.metrics.cpuUtilization
+        queuedRequests = result.metrics.queued
+        queueWaitMilliseconds = result.metrics.totalQueueWaitMilliseconds
+        databaseOperations = result.metrics.databaseReads + result.metrics.databaseWrites
+        databaseLatencyMilliseconds = result.metrics.averageLatencyMilliseconds
+        averageResponseMilliseconds = result.metrics.averageLatencyMilliseconds
+        failures = result.metrics.failed + result.metrics.rejected
+        self.architecture = architecture
+    }
+}
+
+/// Mission 5 requires evidence inspection before applying any combination of
+/// repairs. Every dashboard value, explanation, and victory decision is derived
+/// from the same deterministic simulation result.
+struct DiagnosticMissionRun: Equatable, Sendable {
+    private(set) var stage: DiagnosticMissionStage = .alert
+    private(set) var inspectedEvidence: Set<DiagnosticEvidence> = []
+    private(set) var selectedInterventions: Set<DiagnosticIntervention> = []
+    private(set) var baselineRun: VisualizationRun?
+    private(set) var verificationRun: VisualizationRun?
+    private(set) var feedback = "System alert: inspect the Monitoring Terminal before changing the architecture."
+    private(set) var explanationIDs: [String] = []
+    private(set) var attemptCount = 0
+    var databaseConnected = true
+
+    var resourceCost: Int { selectedInterventions.reduce(0) { $0 + $1.cost } }
+    var canChooseInterventions: Bool { baselineRun != nil && inspectedEvidence.count >= 2 }
+    var isVictorious: Bool { stage == .completed }
+    var currentRun: VisualizationRun? { verificationRun ?? baselineRun }
+    var snapshot: DiagnosticSnapshot? {
+        currentRun.map { DiagnosticSnapshot(result: $0.result, architecture: $0.configuration.nodes) }
+    }
+
+    @discardableResult
+    mutating func measureBaseline(
+        definition: MissionDefinition,
+        engine: SimulationEngine = SimulationEngine()
+    ) throws -> VisualizationRun {
+        if let baselineRun { return baselineRun }
+        let configuration = configuration(for: [])
+        var state = definition.baselineState
+        state.database.isConnected = databaseConnected
+        let result = try engine.run(initialState: state, workload: definition.workload, configuration: configuration)
+        let run = VisualizationRun(workload: definition.workload, configuration: configuration, result: result, baselineResult: nil)
+        baselineRun = run
+        stage = .investigate
+        if databaseConnected {
+            feedback = "Baseline captured. Inspect at least two evidence panels before choosing an intervention."
+            explanationIDs = []
+            if result.metrics.cpuUtilization < 0.5 { explanationIDs.append("diagnostic-low-cpu") }
+            if result.metrics.averageLatencyMilliseconds > 1_000 { explanationIDs.append("diagnostic-primary-database-latency") }
+        } else {
+            feedback = "Configuration fault: the Server has no connection to the primary database. Repair the connection before diagnosing performance."
+            explanationIDs = ["diagnostic-database-disconnected"]
+        }
+        return run
+    }
+
+    mutating func inspect(_ evidence: DiagnosticEvidence) throws {
+        guard baselineRun != nil else { throw DiagnosticMissionError.baselineRequired }
+        inspectedEvidence.insert(evidence)
+        if inspectedEvidence.count >= 2 {
+            stage = .configure
+            feedback = databaseConnected
+                ? "Evidence gate complete. Low CPU and queue pressure point to serialized primary-database reads."
+                : "Evidence gate complete, but the missing database connection is a configuration fault, not a latency bottleneck."
+        } else {
+            feedback = "Inspect one more distinct evidence panel to unlock interventions."
+        }
+    }
+
+    mutating func toggle(_ intervention: DiagnosticIntervention) throws {
+        guard canChooseInterventions else { throw DiagnosticMissionError.evidenceRequired }
+        if selectedInterventions.remove(intervention) == nil {
+            selectedInterventions.insert(intervention)
+        }
+        verificationRun = nil
+        stage = .configure
+        feedback = selectedInterventions.isEmpty
+            ? "Choose one or more interventions to verify."
+            : "Active configuration costs \(resourceCost) units. The full combination will be measured together."
+    }
+
+    @discardableResult
+    mutating func verify(
+        definition: MissionDefinition,
+        engine: SimulationEngine = SimulationEngine()
+    ) throws -> VisualizationRun {
+        guard baselineRun != nil else { throw DiagnosticMissionError.baselineRequired }
+        guard canChooseInterventions else { throw DiagnosticMissionError.evidenceRequired }
+        guard !selectedInterventions.isEmpty else { throw DiagnosticMissionError.interventionRequired }
+
+        let configuration = configuration(for: selectedInterventions)
+        let workload = routedWorkload(definition.workload)
+        var state = definition.baselineState
+        state.database.isConnected = databaseConnected
+        if selectedInterventions.contains(.readReplica) {
+            state.database.replicaRecords = state.database.records
+        }
+        let result = try engine.run(initialState: state, workload: workload, configuration: configuration)
+        let run = VisualizationRun(workload: workload, configuration: configuration, result: result, baselineResult: baselineRun?.result)
+        verificationRun = run
+        attemptCount += 1
+        evaluate(result)
+        return run
+    }
+
+    mutating func resetInterventions() throws {
+        guard baselineRun != nil else { throw DiagnosticMissionError.baselineRequired }
+        selectedInterventions = []
+        verificationRun = nil
+        stage = inspectedEvidence.count >= 2 ? .configure : .investigate
+        feedback = "Stable diagnostic checkpoint restored. Evidence remains available and retries have no penalty."
+        explanationIDs = databaseConnected
+            ? ["diagnostic-low-cpu", "diagnostic-primary-database-latency"]
+            : ["diagnostic-database-disconnected"]
+    }
+
+    private mutating func evaluate(_ result: SimulationResult) {
+        let metrics = result.metrics
+        let metricsAreConsistent = metrics.completed + metrics.failed + metrics.rejected + metrics.queued + metrics.running == result.finalRequests.count
+            && metrics.averageLatencyMilliseconds.isFinite
+            && metrics.averageLatencyMilliseconds >= 0
+
+        guard databaseConnected else {
+            stage = .results
+            feedback = "Configuration fault confirmed: requests failed because the database is disconnected. This is distinct from a performance bottleneck."
+            explanationIDs = ["diagnostic-database-disconnected"]
+            return
+        }
+        guard metricsAreConsistent else {
+            stage = .results
+            feedback = "The measured result was incomplete or inconsistent, so MeOS did not award victory. Retry from the stable checkpoint."
+            explanationIDs = ["diagnostic-inconsistent-metrics"]
+            return
+        }
+        if metrics.completed == 10,
+           metrics.failed == 0,
+           metrics.rejected == 0,
+           metrics.averageLatencyMilliseconds <= 1_000 {
+            stage = .completed
+            feedback = "Repair verified: measured average latency is \(Int(metrics.averageLatencyMilliseconds)) ms, at or below the 1,000 ms target."
+            explanationIDs = metrics.cacheHits > 0
+                ? ["diagnostic-cache-relieved-database", "diagnostic-target-met"]
+                : ["diagnostic-replica-relieved-database", "diagnostic-target-met"]
+        } else {
+            stage = .results
+            feedback = "The run completed, but average latency remains \(Int(metrics.averageLatencyMilliseconds)) ms. Extra app capacity did not remove the serialized primary-database bottleneck."
+            explanationIDs = ["diagnostic-database-bottleneck-remains"]
+        }
+    }
+
+    private func configuration(for interventions: Set<DiagnosticIntervention>) -> SimulationConfiguration {
+        let primary = SystemNode(id: "primary-database", type: .primaryDatabase)
+        var serverConnections: [NodeID] = databaseConnected ? [primary.id] : []
+        var nodes = [SystemNode(id: "client", type: .client, connections: ["server-1"])]
+        if interventions.contains(.cache) {
+            serverConnections.insert("cache", at: 0)
+            nodes.append(SystemNode(id: "cache", type: .cache, connections: [primary.id]))
+        }
+        if interventions.contains(.readReplica) {
+            serverConnections.append("replica")
+            nodes.append(SystemNode(id: "replica", type: .readReplica))
+        }
+        nodes.append(SystemNode(id: "server-1", type: .applicationServer, connections: serverConnections))
+        if interventions.contains(.increasedServerCapacity) {
+            nodes[0].connections = ["router"]
+            nodes.append(SystemNode(id: "router", type: .loadBalancer, connections: ["server-1", "server-2"]))
+            nodes.append(SystemNode(id: "server-2", type: .applicationServer, connections: serverConnections))
+        }
+        nodes.append(primary)
+        return SimulationConfiguration(
+            workerCount: interventions.contains(.increasedWorkers) ? 4 : 1,
+            nodes: nodes,
+            cacheEnabled: interventions.contains(.cache),
+            replicaEnabled: interventions.contains(.readReplica),
+            databaseRoutingPolicy: interventions.contains(.readReplica) ? .alternatePrimaryAndReplica : .primaryOnly,
+            seed: 45_005
+        )
+    }
+
+    private func routedWorkload(_ workload: [Request]) -> [Request] {
+        guard selectedInterventions.contains(.increasedServerCapacity) else { return workload }
+        return workload.enumerated().map { index, request in
+            var routed = request
+            routed.destinationNodeID = index.isMultiple(of: 2) ? "server-1" : "server-2"
+            return routed
+        }
+    }
+}
+
 enum MissionVictoryRule: String, Codable, Equatable, Sendable {
     case sequentialQueueUnderstood
     case twoWorkerTarget
@@ -379,11 +1016,22 @@ enum MissionVictoryRule: String, Codable, Equatable, Sendable {
             return context.facts.isSuperset(of: ["database-installed", "database-connected", "record-matched", "workload-completed"])
         case .scalingTarget:
             return context.resourceCost <= 3
+                && context.result?.metrics.completed == 10
+                && context.result?.metrics.failed == 0
+                && context.result?.metrics.rejected == 0
                 && (context.result?.metrics.averageLatencyMilliseconds ?? .infinity) <= 1_000
         case .diagnosedBottleneck:
-            return context.inspectedEvidenceCount >= 2
+            guard let result = context.result else { return false }
+            let metrics = result.metrics
+            let reconciles = metrics.completed + metrics.failed + metrics.rejected + metrics.queued + metrics.running == result.finalRequests.count
+            return reconciles
+                && metrics.averageLatencyMilliseconds.isFinite
+                && metrics.completed == 10
+                && metrics.failed == 0
+                && metrics.rejected == 0
+                && context.inspectedEvidenceCount >= 2
                 && context.facts.contains("database-bottleneck-improved")
-                && (context.result?.metrics.averageLatencyMilliseconds ?? .infinity) <= 1_000
+                && metrics.averageLatencyMilliseconds <= 1_000
         }
     }
 }
@@ -491,6 +1139,7 @@ struct MissionCatalog: Equatable, Sendable {
     private static func makeScaling() -> MissionDefinition {
         var database = DatabaseState.standard
         database.records["catalog"] = "ready"
+        database.replicaRecords["catalog"] = "ready"
         let workload = (1...10).map {
             Request(id: RequestID(rawValue: String(format: "catalog-read-%02d", $0)), type: .databaseRead(key: "catalog", replicaEligible: true))
         }

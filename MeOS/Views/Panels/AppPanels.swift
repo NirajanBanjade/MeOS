@@ -13,7 +13,7 @@ struct MissionPanel: View {
             VStack(alignment: .leading, spacing: MeOSSpace.md) {
                 DialogPanel(
                     speaker: "System Engineer",
-                    message: "Our application server handles requests one at a time. Inspect it to see where new requests wait."
+                    message: briefingMessage
                 )
                 section("Current objective", text: model.currentObjective, icon: "scope")
                 section("Permitted actions", text: "Inspect the Server, review components, or return to the laboratory.", icon: "hand.tap")
@@ -22,8 +22,8 @@ struct MissionPanel: View {
                     Spacer()
                     StatusBadge(text: "Ready to inspect", kind: .ready)
                 }
-                MeOSPrimaryButton(title: "Inspect Server", icon: ComponentKind.server.icon) {
-                    model.replacePanel(with: model.activeMission == 1 ? .sequentialMission : (model.activeMission == 2 ? .workerMission : .system(.server)))
+                MeOSPrimaryButton(title: primaryActionTitle, icon: primaryActionIcon) {
+                    model.replacePanel(with: missionPanel)
                 }
                 .accessibilityIdentifier("mission.primaryAction")
                 if !model.completedMissionDefinitions.isEmpty {
@@ -39,11 +39,40 @@ struct MissionPanel: View {
             }
         }
     }
+
+    private var briefingMessage: String {
+        switch model.activeMission {
+        case 1: "Our application server handles requests one at a time. Inspect it to see where new requests wait."
+        case 2: "Compare the same workload with one and two workers while keeping CPU capacity fixed."
+        case 3: "Install the primary database, connect it to the Server, then store and retrieve a record."
+        case 4: "Measure the read-heavy baseline, then choose an infrastructure graph that meets the latency target within three budget."
+        default: "System alert: response time is high. Inspect at least two Monitoring Terminal evidence panels, diagnose the bottleneck, and verify a measured repair."
+        }
+    }
+
+    private var missionPanel: AppPanel {
+        switch model.activeMission {
+        case 1: .sequentialMission
+        case 2: .workerMission
+        case 3: .databaseMission
+        case 4: .infrastructureMission
+        default: .diagnosticMission
+        }
+    }
+
+    private var primaryActionTitle: String {
+        model.activeMission == 5 ? "Open Monitoring Terminal" : "Inspect Server"
+    }
+
+    private var primaryActionIcon: String {
+        model.activeMission == 5 ? ComponentKind.monitoringTerminal.icon : ComponentKind.server.icon
+    }
 }
 
 struct SequentialMissionPanel: View {
     @ObservedObject var model: AppModel
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @State private var playbackTask: Task<Void, Never>?
 
     private var reduceMotion: Bool { systemReduceMotion || model.forceReduceMotion }
@@ -113,6 +142,13 @@ struct SequentialMissionPanel: View {
         .onDisappear {
             playbackTask?.cancel()
             model.pauseSequentialPresentation()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                playbackTask?.cancel()
+                playbackTask = nil
+                model.pauseSequentialPresentation()
+            }
         }
     }
 
@@ -329,6 +365,7 @@ private struct Mission1SpriteView: View {
 struct WorkerMissionPanel: View {
     @ObservedObject var model: AppModel
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @State private var playbackTask: Task<Void, Never>?
 
     private var reduceMotion: Bool { systemReduceMotion || model.forceReduceMotion }
@@ -400,6 +437,13 @@ struct WorkerMissionPanel: View {
         .onDisappear {
             playbackTask?.cancel()
             model.pauseWorkerPresentation()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                playbackTask?.cancel()
+                playbackTask = nil
+                model.pauseWorkerPresentation()
+            }
         }
     }
 
@@ -592,6 +636,642 @@ private struct MeOSCompactChoiceStyle: ButtonStyle {
             .overlay(RoundedRectangle(cornerRadius: MeOSRadius.button).stroke(selected ? MeOSColor.cyan : MeOSColor.secondaryText, lineWidth: 2))
             .clipShape(RoundedRectangle(cornerRadius: MeOSRadius.button))
             .opacity(configuration.isPressed ? 0.75 : 1)
+    }
+}
+
+struct DatabaseMissionPanel: View {
+    @ObservedObject var model: AppModel
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @State private var key = "status"
+    @State private var value = "online"
+    @State private var validationMessage: String?
+
+    private var reduceMotion: Bool { systemReduceMotion || model.forceReduceMotion }
+
+    var body: some View {
+        PanelContainer(
+            title: "Mission 3 · Database Storage",
+            context: "Install and connect a five-record key/value database.",
+            onClose: model.closePanel
+        ) {
+            VStack(alignment: .leading, spacing: MeOSSpace.md) {
+                DialogPanel(
+                    speaker: "System Engineer",
+                    message: "Store status = online, read the same value back, then send a mixed read/write workload through the connected Server."
+                )
+                architectureState
+
+                if !model.databaseMission.isInstalled {
+                    MeOSPrimaryButton(title: "Install Primary Database", icon: "externaldrive.badge.plus") {
+                        perform { try model.installDatabase() }
+                    }
+                    .accessibilityIdentifier("mission3.install")
+                } else if !model.databaseMission.isConnected {
+                    MeOSPrimaryButton(title: "Connect Server to Database", icon: "cable.connector") {
+                        perform { try model.connectDatabase() }
+                    }
+                    .accessibilityHint("Creates the explicit Server-to-primary-database connection")
+                    .accessibilityIdentifier("mission3.connect")
+                }
+
+                if model.databaseMission.isInstalled { terminal }
+
+                if let operation = model.databaseMission.feedback {
+                    operationFeedback(operation)
+                }
+
+                if let run = model.databaseMission.lastOperationRun {
+                    databaseVisualization(run)
+                }
+
+                if model.databaseMission.didWriteScriptedRecord,
+                   model.databaseMission.didReadScriptedRecord,
+                   model.activeMission == MissionID.databaseStorage.rawValue {
+                    MeOSPrimaryButton(title: "Run Connected Mixed Workload", icon: "play.fill") {
+                        perform { _ = try model.runDatabaseWorkload() }
+                    }
+                    .disabled(!model.databaseMission.isConnected)
+                    .accessibilityIdentifier("mission3.runWorkload")
+                }
+
+                if model.databaseMission.isComplete {
+                    StatusBadge(text: "Mission complete · Infrastructure slots unlocked", kind: .complete)
+                        .accessibilityIdentifier("mission3.complete")
+                    MeOSPrimaryButton(title: "Continue to Mission 4", icon: "arrow.right.circle.fill") {
+                        model.closePanel()
+                    }
+                    .accessibilityIdentifier("mission3.continue")
+                }
+
+                MeOSSecondaryButton(title: "Reset Database Checkpoint", icon: "arrow.counterclockwise") {
+                    perform { try model.resetDatabaseMission() }
+                }
+                .accessibilityHint("Cancels pending presentation work and restores the empty, disconnected Mission 3 baseline")
+                .accessibilityIdentifier("mission3.reset")
+            }
+        }
+    }
+
+    private var architectureState: some View {
+        MeOSCard {
+            VStack(alignment: .leading, spacing: MeOSSpace.sm) {
+                HStack {
+                    Label(
+                        model.databaseMission.isInstalled ? "Primary database installed" : "Database slot empty",
+                        systemImage: model.databaseMission.isInstalled ? "externaldrive.fill.badge.checkmark" : "externaldrive.badge.plus"
+                    )
+                    Spacer()
+                    StatusBadge(
+                        text: model.databaseMission.isConnected ? "Connected" : "Disconnected",
+                        kind: model.databaseMission.isConnected ? .complete : .attention
+                    )
+                }
+                Label(
+                    model.databaseMission.isConnected ? "Server ─── Primary Database" : "Server     Primary Database · no cable",
+                    systemImage: model.databaseMission.isConnected ? "cable.connector" : "cable.connector.slash"
+                )
+                .font(.headline.monospaced())
+                .foregroundStyle(MeOSColor.text)
+                Text("Capacity: \(model.databaseMission.capacityUsed) of \(model.databaseMission.capacity) unique keys · reads 300 ms · writes 500 ms")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(MeOSColor.secondaryText)
+                    .accessibilityIdentifier("mission3.capacity")
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("mission3.architecture")
+    }
+
+    private var terminal: some View {
+        MeOSCard {
+            VStack(alignment: .leading, spacing: MeOSSpace.sm) {
+                Label("Database Terminal · key/value commands", systemImage: "terminal.fill")
+                    .font(.headline)
+                    .foregroundStyle(MeOSColor.cyan)
+                Text("This terminal sends modeled operations; it does not run SQL.")
+                    .font(.caption)
+                    .foregroundStyle(MeOSColor.secondaryText)
+                TextField("Key", text: $key)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Record key")
+                    .accessibilityIdentifier("mission3.key")
+                TextField("Value", text: $value)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Record value")
+                    .accessibilityIdentifier("mission3.value")
+                if let validationMessage {
+                    Label(validationMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(MeOSColor.amber)
+                        .accessibilityIdentifier("mission3.validation")
+                }
+                HStack {
+                    MeOSPrimaryButton(title: "Create / Update", icon: "square.and.pencil") {
+                        perform { _ = try model.writeDatabaseRecord(key: key, value: value) }
+                    }
+                    .accessibilityIdentifier("mission3.write")
+                    MeOSSecondaryButton(title: "Read", icon: "doc.text.magnifyingglass") {
+                        perform { _ = try model.readDatabaseRecord(key: key) }
+                    }
+                    .accessibilityIdentifier("mission3.read")
+                }
+            }
+        }
+    }
+
+    private func operationFeedback(_ operation: DatabaseOperationFeedback) -> some View {
+        MeOSCard {
+            HStack(alignment: .top, spacing: MeOSSpace.sm) {
+                Image(systemName: operation.icon)
+                    .foregroundStyle(operation.succeeded ? MeOSColor.mint : MeOSColor.amber)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: MeOSSpace.xs) {
+                    Text("\(operation.kind.rawValue) · \(operation.succeeded ? "Succeeded" : "Failed")")
+                        .font(.headline)
+                    Text(operation.message)
+                    Text("Simulated latency: \(operation.latencyMilliseconds) ms")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(MeOSColor.secondaryText)
+                }
+                .foregroundStyle(MeOSColor.text)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("mission3.feedback")
+    }
+
+    private func databaseVisualization(_ run: VisualizationRun) -> some View {
+        let state = SimulationEventProjector().project(
+            events: run.result.orderedEvents[...],
+            workload: run.workload,
+            configuration: run.configuration
+        )
+        return VStack(alignment: .leading, spacing: MeOSSpace.sm) {
+            Text("Engine event flow")
+                .font(.headline)
+                .foregroundStyle(MeOSColor.text)
+            Mission1SpriteView(state: state, reduceMotion: reduceMotion)
+                .frame(height: 220)
+                .clipShape(RoundedRectangle(cornerRadius: MeOSRadius.card))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Database request event animation")
+                .accessibilityValue("\(run.result.metrics.databaseWrites) writes, \(run.result.metrics.databaseReads) reads, \(run.result.metrics.completed) completed, \(run.result.metrics.failed) failed")
+                .accessibilityIdentifier("mission3.databaseEvents")
+            Text("Engine operations: \(run.result.metrics.databaseWrites) writes · \(run.result.metrics.databaseReads) reads · \(run.result.orderedEvents.count) ordered events")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(MeOSColor.secondaryText)
+                .accessibilityIdentifier("mission3.operationCounts")
+        }
+    }
+
+    private func perform(_ action: () throws -> Void) {
+        do {
+            try action()
+            validationMessage = nil
+        } catch DatabaseMissionError.databaseNotInstalled {
+            validationMessage = "Install the primary database before using the terminal."
+        } catch DatabaseMissionError.emptyKey {
+            validationMessage = "Enter a non-empty key. Spaces alone are not valid."
+        } catch DatabaseMissionError.emptyValue {
+            validationMessage = "Enter a non-empty value. Spaces alone are not valid."
+        } catch {
+            validationMessage = "The operation could not be completed. Your database checkpoint is unchanged."
+        }
+    }
+}
+
+struct InfrastructureMissionPanel: View {
+    @ObservedObject var model: AppModel
+    @State private var validationMessage: String?
+
+    var body: some View {
+        PanelContainer(
+            title: "Mission 4 · Infrastructure Scaling",
+            context: "Ten catalog reads · target ≤ 1,000 ms average · budget 3",
+            onClose: model.closePanel
+        ) {
+            VStack(alignment: .leading, spacing: MeOSSpace.md) {
+                DialogPanel(
+                    speaker: "System Engineer",
+                    message: "All ten reads arrive at time zero. Measure the serialized primary, then buy a graph change and compare the real engine metrics."
+                )
+
+                budgetCard
+
+                if model.infrastructureMission.baselineRun == nil {
+                    MeOSPrimaryButton(title: "Run Primary-only Baseline", icon: "play.fill") {
+                        perform { _ = try model.runInfrastructureWorkload() }
+                    }
+                    .accessibilityIdentifier("mission4.runBaseline")
+                } else {
+                    upgradeChoices
+                    if model.infrastructureMission.comparisonRun == nil,
+                       !model.infrastructureMission.selectedUpgrades.isEmpty {
+                        MeOSPrimaryButton(title: "Run Upgraded Graph", icon: "play.fill") {
+                            perform { _ = try model.runInfrastructureWorkload() }
+                        }
+                        .accessibilityIdentifier("mission4.runUpgrade")
+                    }
+                }
+
+                StatusBadge(
+                    text: model.infrastructureMission.feedback,
+                    kind: model.infrastructureMission.isVictorious ? .complete : .ready
+                )
+                .accessibilityIdentifier("mission4.feedback")
+
+                if let validationMessage {
+                    Label(validationMessage, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(MeOSColor.amber)
+                        .accessibilityIdentifier("mission4.validation")
+                }
+
+                if let baseline = model.infrastructureMission.baselineRun {
+                    metricSummary(baseline: baseline, comparison: model.infrastructureMission.comparisonRun)
+                }
+
+                if let run = model.infrastructureMission.comparisonRun {
+                    SimulationVisualizationView(run: run, forceReduceMotion: model.forceReduceMotion)
+                        .accessibilityIdentifier("mission4.visualization")
+                }
+
+                if model.infrastructureMission.isVictorious {
+                    StatusBadge(text: "Mission complete · Monitoring Terminal alert unlocked", kind: .complete)
+                        .accessibilityIdentifier("mission4.complete")
+                    MeOSPrimaryButton(title: "Continue to Mission 5", icon: "arrow.right.circle.fill") {
+                        model.closePanel()
+                    }
+                    .accessibilityIdentifier("mission4.continue")
+                }
+
+                if !model.infrastructureMission.isVictorious {
+                    MeOSSecondaryButton(title: "Reset Mission 4", icon: "arrow.counterclockwise") {
+                        perform { try model.resetInfrastructureMission() }
+                    }
+                    .accessibilityHint("Restores the same ten request IDs, catalog value, seed, empty upgrade graph, and budget")
+                    .accessibilityIdentifier("mission4.reset")
+                }
+            }
+        }
+    }
+
+    private var budgetCard: some View {
+        MeOSCard {
+            VStack(alignment: .leading, spacing: MeOSSpace.sm) {
+                HStack {
+                    ResourceCounter(
+                        available: model.infrastructureMission.availableBudget,
+                        total: InfrastructureMissionRun.budget
+                    )
+                    Spacer()
+                    Text("Cost \(model.infrastructureMission.resourceCost) / \(InfrastructureMissionRun.budget)")
+                        .font(.headline.monospacedDigit())
+                        .foregroundStyle(MeOSColor.text)
+                }
+                Text("Primary DB: 300 ms serialized reads · Replica lag: 1,000 ms · Cache hit: 50 ms")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(MeOSColor.secondaryText)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("mission4.budget")
+    }
+
+    private var upgradeChoices: some View {
+        VStack(alignment: .leading, spacing: MeOSSpace.sm) {
+            Text("Choose graph additions")
+                .font(.headline)
+                .foregroundStyle(MeOSColor.text)
+            ForEach(InfrastructureUpgrade.allCases) { upgrade in
+                let selected = model.infrastructureMission.selectedUpgrades.contains(upgrade)
+                MeOSCard {
+                    VStack(alignment: .leading, spacing: MeOSSpace.xs) {
+                        HStack {
+                            Label(upgrade.title, systemImage: icon(for: upgrade))
+                                .font(.headline)
+                            Spacer()
+                            Text("Cost \(upgrade.cost)").font(.subheadline.monospacedDigit())
+                        }
+                        .foregroundStyle(MeOSColor.text)
+                        Text(upgrade.explanation)
+                            .font(.subheadline)
+                            .foregroundStyle(MeOSColor.secondaryText)
+                        if let reason = model.infrastructureMission.unavailableReason(for: upgrade), !selected {
+                            Text(reason)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(MeOSColor.amber)
+                                .accessibilityIdentifier("mission4.reason.\(upgrade.rawValue)")
+                        }
+                        MeOSSecondaryButton(
+                            title: selected ? "Added" : "Add \(upgrade.title)",
+                            icon: selected ? "checkmark.circle.fill" : "plus.circle.fill"
+                        ) {
+                            perform { try model.selectInfrastructureUpgrade(upgrade) }
+                        }
+                        .disabled(selected || model.infrastructureMission.unavailableReason(for: upgrade) != nil)
+                        .accessibilityIdentifier("mission4.upgrade.\(upgrade.rawValue)")
+                    }
+                }
+            }
+        }
+    }
+
+    private func metricSummary(baseline: VisualizationRun, comparison: VisualizationRun?) -> some View {
+        let before = baseline.result.metrics
+        let after = comparison?.result.metrics
+        return MeOSCard {
+            VStack(alignment: .leading, spacing: MeOSSpace.sm) {
+                Text("Measured before / after")
+                    .font(.headline)
+                    .foregroundStyle(MeOSColor.cyan)
+                metricRow("Average latency", before: "\(Int(before.averageLatencyMilliseconds)) ms", after: after.map { "\(Int($0.averageLatencyMilliseconds)) ms" })
+                metricRow("Completion time", before: "\(before.completionTimeMilliseconds) ms", after: after.map { "\($0.completionTimeMilliseconds) ms" })
+                metricRow("Database operations", before: "\(before.databaseReads + before.databaseWrites)", after: after.map { "\($0.databaseReads + $0.databaseWrites)" })
+                metricRow("Cache hits / misses", before: "\(before.cacheHits) / \(before.cacheMisses)", after: after.map { "\($0.cacheHits) / \($0.cacheMisses)" })
+                metricRow("Replica reads", before: "\(before.replicaReads)", after: after.map { "\($0.replicaReads)" })
+                metricRow("Resource cost", before: "0", after: comparison == nil ? nil : "\(model.infrastructureMission.resourceCost)")
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("mission4.metrics")
+    }
+
+    private func metricRow(_ label: String, before: String, after: String?) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text("\(before) → \(after ?? "—")")
+                .monospacedDigit()
+        }
+        .font(.subheadline)
+        .foregroundStyle(MeOSColor.text)
+    }
+
+    private func icon(for upgrade: InfrastructureUpgrade) -> String {
+        switch upgrade {
+        case .readReplica: ComponentKind.readReplica.icon
+        case .cache: ComponentKind.cache.icon
+        case .secondServer: ComponentKind.server.icon
+        case .routing: ComponentKind.router.icon
+        }
+    }
+
+    private func perform(_ action: () throws -> Void) {
+        do {
+            try action()
+            validationMessage = nil
+        } catch InfrastructureMissionError.baselineRequired {
+            validationMessage = "Run the primary-only baseline first."
+        } catch InfrastructureMissionError.upgradeRequired {
+            validationMessage = "Choose an affordable upgrade before running the comparison."
+        } catch InfrastructureMissionError.insufficientBudget(let required, let available) {
+            validationMessage = "That addition costs \(required), but only \(available) budget remains."
+        } catch InfrastructureMissionError.routingRequiresSecondServer {
+            validationMessage = "A routing connection needs a second app server destination."
+        } catch {
+            validationMessage = "The graph could not be changed. The last measured checkpoint is unchanged."
+        }
+    }
+}
+
+struct DiagnosticMissionPanel: View {
+    @ObservedObject var model: AppModel
+    @State private var validationMessage: String?
+
+    var body: some View {
+        PanelContainer(
+            title: "Mission 5 · System Diagnostics",
+            context: "Investigate evidence, repair the actual bottleneck, and verify the result.",
+            onClose: model.closePanel
+        ) {
+            VStack(alignment: .leading, spacing: MeOSSpace.md) {
+                DialogPanel(
+                    speaker: "System Alert",
+                    message: "Response time is above target. Do not guess: capture the baseline and inspect at least two distinct evidence panels before changing the system."
+                )
+
+                if model.diagnosticMission.baselineRun == nil {
+                    MeOSPrimaryButton(title: "Capture Diagnostic Baseline", icon: "waveform.path.ecg") {
+                        perform { _ = try model.measureDiagnosticBaseline() }
+                    }
+                    .accessibilityIdentifier("mission5.captureBaseline")
+                }
+
+                if let run = model.diagnosticMission.baselineRun {
+                    evidenceGrid(result: run.result, architecture: run.configuration.nodes)
+                }
+
+                if model.diagnosticMission.canChooseInterventions {
+                    interventionChoices
+                } else if model.diagnosticMission.baselineRun != nil {
+                    Label(
+                        "Inspect \(max(0, 2 - model.diagnosticMission.inspectedEvidence.count)) more distinct evidence panel\(model.diagnosticMission.inspectedEvidence.count == 1 ? "" : "s") to unlock interventions.",
+                        systemImage: "lock.fill"
+                    )
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(MeOSColor.amber)
+                    .accessibilityIdentifier("mission5.evidenceGate")
+                }
+
+                if !model.diagnosticMission.selectedInterventions.isEmpty {
+                    MeOSPrimaryButton(title: "Run Verification Workload", icon: "play.fill") {
+                        perform { _ = try model.verifyDiagnosticRepair() }
+                    }
+                    .accessibilityHint("Measures the complete active configuration against the unchanged ten-read workload")
+                    .accessibilityIdentifier("mission5.verify")
+                }
+
+                if let validationMessage {
+                    Label(validationMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(MeOSColor.amber)
+                        .accessibilityIdentifier("mission5.validation")
+                }
+
+                Label(model.diagnosticMission.feedback, systemImage: model.diagnosticMission.isVictorious ? "checkmark.seal.fill" : "stethoscope")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(MeOSColor.text)
+                    .accessibilityIdentifier("mission5.feedback")
+
+                if let baseline = model.diagnosticMission.baselineRun {
+                    measuredComparison(baseline: baseline, verification: model.diagnosticMission.verificationRun)
+                }
+
+                if model.diagnosticMission.stage == .results {
+                    MeOSSecondaryButton(title: "Retry from Diagnostic Checkpoint", icon: "arrow.counterclockwise") {
+                        perform { try model.resetDiagnosticInterventions() }
+                    }
+                    .accessibilityHint("Keeps inspected evidence, clears interventions, and applies no penalty")
+                    .accessibilityIdentifier("mission5.retry")
+                }
+
+                if model.diagnosticMission.isVictorious {
+                    finalSummary
+                }
+
+                if let verification = model.diagnosticMission.verificationRun {
+                    SimulationVisualizationView(run: verification, forceReduceMotion: model.forceReduceMotion)
+                }
+            }
+        }
+    }
+
+    private func evidenceGrid(result: SimulationResult, architecture: [SystemNode]) -> some View {
+        let snapshot = DiagnosticSnapshot(result: result, architecture: architecture)
+        return VStack(alignment: .leading, spacing: MeOSSpace.sm) {
+            HStack {
+                Text("Measured evidence")
+                    .font(.headline)
+                    .foregroundStyle(MeOSColor.cyan)
+                Spacer()
+                StatusBadge(text: "\(model.diagnosticMission.inspectedEvidence.count) of 2 required", kind: model.diagnosticMission.canChooseInterventions ? .complete : .attention)
+            }
+            ForEach(DiagnosticEvidence.allCases) { evidence in
+                let inspected = model.diagnosticMission.inspectedEvidence.contains(evidence)
+                MeOSSecondaryButton(title: "\(inspected ? "Reviewed" : "Inspect") · \(evidence.title)", icon: inspected ? "checkmark.circle.fill" : evidenceIcon(evidence)) {
+                    perform { try model.inspectDiagnosticEvidence(evidence) }
+                }
+                .accessibilityIdentifier("mission5.evidence.\(evidence.rawValue)")
+                if inspected {
+                    Text(evidenceText(evidence, snapshot: snapshot))
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(MeOSColor.secondaryText)
+                        .padding(.leading, MeOSSpace.sm)
+                        .accessibilityIdentifier("mission5.evidenceDetail.\(evidence.rawValue)")
+                }
+            }
+        }
+    }
+
+    private var interventionChoices: some View {
+        VStack(alignment: .leading, spacing: MeOSSpace.sm) {
+            HStack {
+                Text("Active configuration")
+                    .font(.headline)
+                    .foregroundStyle(MeOSColor.cyan)
+                Spacer()
+                Text("Cost \(model.diagnosticMission.resourceCost)")
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(MeOSColor.text)
+            }
+            Text("Select any combination. MeOS measures the whole graph, not the most recent button.")
+                .font(.subheadline)
+                .foregroundStyle(MeOSColor.secondaryText)
+            ForEach(DiagnosticIntervention.allCases) { intervention in
+                let selected = model.diagnosticMission.selectedInterventions.contains(intervention)
+                MeOSSecondaryButton(
+                    title: "\(selected ? "Remove" : "Add") · \(intervention.title) · Cost \(intervention.cost)",
+                    icon: selected ? "minus.circle.fill" : interventionIcon(intervention)
+                ) {
+                    perform { try model.toggleDiagnosticIntervention(intervention) }
+                }
+                .accessibilityValue(selected ? "Active" : "Inactive")
+                .accessibilityIdentifier("mission5.intervention.\(intervention.rawValue)")
+            }
+        }
+    }
+
+    private func measuredComparison(baseline: VisualizationRun, verification: VisualizationRun?) -> some View {
+        let before = baseline.result.metrics
+        let after = verification?.result.metrics
+        return MeOSCard {
+            VStack(alignment: .leading, spacing: MeOSSpace.sm) {
+                Text("Same-result monitoring summary")
+                    .font(.headline)
+                    .foregroundStyle(MeOSColor.cyan)
+                diagnosticRow("CPU utilization", before: percent(before.cpuUtilization), after: after.map { percent($0.cpuUtilization) })
+                diagnosticRow("Worker queue / wait", before: "\(before.queued) / \(before.totalQueueWaitMilliseconds) ms", after: after.map { "\($0.queued) / \($0.totalQueueWaitMilliseconds) ms" })
+                diagnosticRow("Database load", before: "\(before.databaseReads + before.databaseWrites) ops", after: after.map { "\($0.databaseReads + $0.databaseWrites) ops" })
+                diagnosticRow("Database / response latency", before: "\(Int(before.averageLatencyMilliseconds)) ms", after: after.map { "\(Int($0.averageLatencyMilliseconds)) ms" })
+                diagnosticRow("Failures", before: "\(before.failed + before.rejected)", after: after.map { "\($0.failed + $0.rejected)" })
+                diagnosticRow("Architecture nodes", before: "\(baseline.configuration.nodes.count)", after: verification.map { "\($0.configuration.nodes.count)" })
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("mission5.metrics")
+    }
+
+    private var finalSummary: some View {
+        MeOSCard {
+            VStack(alignment: .leading, spacing: MeOSSpace.sm) {
+                Label("MeOS System Architect", systemImage: "medal.star.fill")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(MeOSColor.cyan)
+                Text("Evidence chain: low CPU utilization + no limiting worker queue + high serialized primary-database latency → relieve database reads → verify average response at or below 1,000 ms.")
+                    .foregroundStyle(MeOSColor.text)
+                Text("Concepts learned: request queues, concurrency, persistent storage, scalable read paths, caching, replicas, and evidence-based bottleneck diagnosis.")
+                    .foregroundStyle(MeOSColor.secondaryText)
+                Text("All five missions are complete. Replay is unlocked from the Mission Briefing without duplicating achievements or this title.")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(MeOSColor.text)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("mission5.complete")
+    }
+
+    private func evidenceText(_ evidence: DiagnosticEvidence, snapshot: DiagnosticSnapshot) -> String {
+        switch evidence {
+        case .cpu:
+            "CPU utilization: \(percent(snapshot.cpuUtilization)). Low CPU pressure means processing capacity is not saturated."
+        case .workerQueue:
+            "Queued now: \(snapshot.queuedRequests); queue wait: \(snapshot.queueWaitMilliseconds) ms. Worker pressure is not the limiting factor."
+        case .database:
+            "Primary database: \(snapshot.databaseOperations) serialized operations; measured latency: \(Int(snapshot.databaseLatencyMilliseconds)) ms."
+        case .responseAndArchitecture:
+            "Average response: \(Int(snapshot.averageResponseMilliseconds)) ms; failures: \(snapshot.failures); architecture: \(snapshot.architecture.map(\.id.rawValue).joined(separator: ", "))."
+        }
+    }
+
+    private func evidenceIcon(_ evidence: DiagnosticEvidence) -> String {
+        switch evidence {
+        case .cpu: "cpu"
+        case .workerQueue: "person.2.fill"
+        case .database: "cylinder.split.1x2"
+        case .responseAndArchitecture: "point.3.connected.trianglepath.dotted"
+        }
+    }
+
+    private func interventionIcon(_ intervention: DiagnosticIntervention) -> String {
+        switch intervention {
+        case .increasedWorkers: ComponentKind.worker.icon
+        case .increasedServerCapacity: ComponentKind.server.icon
+        case .readReplica: ComponentKind.readReplica.icon
+        case .cache: ComponentKind.cache.icon
+        }
+    }
+
+    private func diagnosticRow(_ label: String, before: String, after: String?) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text("\(before) → \(after ?? "—")").monospacedDigit()
+        }
+        .font(.subheadline)
+        .foregroundStyle(MeOSColor.text)
+    }
+
+    private func percent(_ value: Double) -> String {
+        "\(Int((value * 100).rounded()))%"
+    }
+
+    private func perform(_ action: () throws -> Void) {
+        do {
+            try action()
+            validationMessage = nil
+        } catch DiagnosticMissionError.baselineRequired {
+            validationMessage = "Capture the baseline first."
+        } catch DiagnosticMissionError.evidenceRequired {
+            validationMessage = "Inspect at least two distinct evidence panels first."
+        } catch DiagnosticMissionError.interventionRequired {
+            validationMessage = "Choose at least one intervention to verify."
+        } catch {
+            validationMessage = "The diagnostic action could not be completed. The stable checkpoint is unchanged."
+        }
     }
 }
 
@@ -880,8 +1560,9 @@ struct CreditsPanel: View {
         ) {
             VStack(alignment: .leading, spacing: MeOSSpace.md) {
                 section("MeOS", text: "Designed as an offline educational adventure for learning how computer systems work.", icon: "cpu")
-                section("Visual resources", text: "Interface symbols use Apple SF Symbols. Feature 1 uses programmatically drawn laboratory placeholders and Apple-native fonts.", icon: "paintpalette")
+                section("Visual resources", text: "The MeOS app icon is original project artwork. Interface symbols use Apple SF Symbols; the laboratory is drawn in code with Apple-native fonts.", icon: "paintpalette")
                 section("Technology", text: "Built with Swift, SwiftUI, SpriteKit, Foundation, XCTest, and XCUITest. No third-party runtime packages or remote resources.", icon: "hammer")
+                section("Packaged notice", text: "A matching Credits.txt notice is included in the application bundle for release inspection.", icon: "doc.text.fill")
             }
         }
     }

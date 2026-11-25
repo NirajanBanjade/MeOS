@@ -55,9 +55,14 @@ Teach read replicas, caches, application servers, routing, budgets, and architec
 
 ## Complete When
 
-- [ ] At least replica and cache are valid measured solutions.
-- [ ] Every upgrade’s behavior and cost match its actual configured graph.
-- [ ] Less-effective choices remain playable and accurately explained.
-- [ ] Mission 5 unlocks exactly once.
-- [ ] Infrastructure, metric, and UI tests pass.
+- [x] At least replica and cache are valid measured solutions.
+  - Evidence: `InfrastructureMissionRun` and `AppModelTests.infrastructureMeasuredSolutions`; `swift test` passes with exact 525 ms cache and 900 ms replica averages.
+- [x] Every upgrade’s behavior and cost match its actual configured graph.
+  - Evidence: `InfrastructureMissionRun.configuration(for:)` plus `AppModelTests.infrastructureEdgesAndServerTradeoff`; `swift test` verifies costs, nodes, routes, and destinations.
+- [x] Less-effective choices remain playable and accurately explained.
+  - Evidence: server-only and server-plus-routing results remain resettable and explain unused capacity versus primary-database contention in `InfrastructureMissionRun`; tests pass.
+- [x] Mission 5 unlocks exactly once.
+  - Evidence: `AppModelTests.infrastructureUnlock` verifies the completion set, current mission, Monitoring Terminal availability, and duplicate-call guard.
+- [x] Infrastructure, metric, and UI tests pass.
+  - Evidence: `AppModelTests.infrastructureMeasuredSolutions`, `AppModelTests.infrastructureEdgesAndServerTradeoff`, and both Mission 4 XCUITests; `swift test` passed 61 tests and the two focused iPad Pro 13-inch UI tests passed.
 

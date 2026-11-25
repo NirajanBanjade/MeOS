@@ -63,6 +63,9 @@ enum AppPanel: Identifiable, Equatable, Sendable {
     case mission
     case sequentialMission
     case workerMission
+    case databaseMission
+    case infrastructureMission
+    case diagnosticMission
     case system(ComponentKind)
     case results
     case pause
@@ -77,6 +80,9 @@ enum AppPanel: Identifiable, Equatable, Sendable {
         case .mission: "mission"
         case .sequentialMission: "sequential-mission"
         case .workerMission: "worker-mission"
+        case .databaseMission: "database-mission"
+        case .infrastructureMission: "infrastructure-mission"
+        case .diagnosticMission: "diagnostic-mission"
         case .system(let component): "system-\(component.rawValue)"
         case .results: "results"
         case .pause: "pause"

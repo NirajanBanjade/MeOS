@@ -199,9 +199,15 @@ struct MissionEngineTests {
     }
 
     private func result(averageLatency: Double) -> SimulationResult {
-        SimulationResult(
+        let requests = (1...10).map {
+            Request(
+                id: RequestID(rawValue: "diagnostic-\($0)"),
+                status: .completed(at: 1_000)
+            )
+        }
+        return SimulationResult(
             metrics: SimulationMetrics(completed: 10, failed: 0, rejected: 0, queued: 0, running: 0, totalQueueWaitMilliseconds: 0, averageLatencyMilliseconds: averageLatency, completionTimeMilliseconds: 1_000, databaseReads: 10, databaseWrites: 0, cacheHits: 9, cacheMisses: 1, replicaReads: 0, cpuUtilization: 0.1),
-            orderedEvents: [], finalRequests: [], workers: [], database: .standard, seed: 1, explanationIDs: []
+            orderedEvents: [], finalRequests: requests, workers: [], database: .standard, seed: 1, explanationIDs: []
         )
     }
 }

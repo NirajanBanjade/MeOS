@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     @ObservedObject var model: AppModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -35,6 +36,11 @@ struct RootView: View {
         } message: {
             Text(model.recoveryMessage ?? "")
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                model.handleBackgrounding()
+            }
+        }
         .preferredColorScheme(.dark)
     }
 
@@ -44,6 +50,9 @@ struct RootView: View {
         case .mission: MissionPanel(model: model)
         case .sequentialMission: SequentialMissionPanel(model: model)
         case .workerMission: WorkerMissionPanel(model: model)
+        case .databaseMission: DatabaseMissionPanel(model: model)
+        case .infrastructureMission: InfrastructureMissionPanel(model: model)
+        case .diagnosticMission: DiagnosticMissionPanel(model: model)
         case .system(let component): SystemPanel(model: model, component: component)
         case .results: ResultsPanel(model: model)
         case .pause: PausePanel(model: model)

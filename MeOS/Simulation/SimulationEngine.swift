@@ -601,7 +601,10 @@ struct SimulationEngine: Sendable {
         let averageLatency = completedLatencies.isEmpty
             ? 0
             : Double(completedLatencies.reduce(0, +)) / Double(completedLatencies.count)
-        let databaseReads = events.filter { if case .databaseRead = $0.payload { true } else { false } }.count
+        let databaseReads = events.filter {
+            if case .databaseRead = $0.payload { return $0.nodeID != NodeID(rawValue: "cache") }
+            return false
+        }.count
         let databaseWrites = events.filter { if case .databaseWrite = $0.payload { true } else { false } }.count
         let cacheHits = events.filter { if case .cacheHit = $0.payload { true } else { false } }.count
         let cacheMisses = events.filter { if case .cacheMiss = $0.payload { true } else { false } }.count

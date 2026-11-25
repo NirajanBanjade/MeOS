@@ -31,6 +31,10 @@ struct GameView: View {
                 if let message = model.movementMessage {
                     movementNotice(message)
                 }
+                if model.activeMission == MissionID.systemDiagnostics.rawValue,
+                   !model.missionEngine.progress.completedMissionIDs.contains(.systemDiagnostics) {
+                    diagnosticAlert
+                }
                 Spacer()
                 if let nearby = model.nearbyObject {
                     proximityPrompt(nearby)
@@ -42,6 +46,7 @@ struct GameView: View {
         .onAppear {
             scene.worldDelegate = model
             scene.updateMission(model.activeMission)
+            scene.updateDatabaseState(installed: model.databaseMission.isInstalled, connected: model.databaseMission.isConnected)
             scene.setWorldPaused(model.presentedPanel != nil)
         }
         .onChange(of: model.presentedPanel) { _, panel in
@@ -50,13 +55,15 @@ struct GameView: View {
         .onChange(of: model.activeMission) { _, mission in
             scene.updateMission(mission)
         }
+        .onChange(of: model.databaseMission) { _, state in
+            scene.updateDatabaseState(installed: state.isInstalled, connected: state.isConnected)
+        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
                 scene.setWorldPaused(model.presentedPanel != nil)
             case .inactive, .background:
                 scene.setWorldPaused(true)
-                model.handleBackgrounding()
             @unknown default:
                 scene.setWorldPaused(true)
             }
@@ -140,6 +147,26 @@ struct GameView: View {
         .padding(MeOSSpace.sm)
         .background(MeOSColor.panel.opacity(0.96), in: RoundedRectangle(cornerRadius: MeOSRadius.card))
         .accessibilityIdentifier("world.message")
+    }
+
+    private var diagnosticAlert: some View {
+        HStack(spacing: MeOSSpace.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(MeOSColor.amber)
+                .accessibilityHidden(true)
+            Text("SYSTEM ALERT · High response time detected. Open the Monitoring Terminal and inspect measured evidence.")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(MeOSColor.text)
+            Spacer()
+            Button("Investigate") { model.requestInteraction(with: .monitoringTerminal, accessible: true) }
+                .font(.headline)
+                .foregroundStyle(MeOSColor.cyan)
+                .accessibilityIdentifier("mission5.alert.investigate")
+        }
+        .padding(MeOSSpace.sm)
+        .background(MeOSColor.panel.opacity(0.97), in: RoundedRectangle(cornerRadius: MeOSRadius.card))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("mission5.alert")
     }
 
     private func proximityPrompt(_ object: LaboratoryObject) -> some View {

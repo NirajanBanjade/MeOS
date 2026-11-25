@@ -6,6 +6,7 @@ struct PanelContainer<Content: View>: View {
     let closeTitle: String
     let onClose: () -> Void
     let content: Content
+    @AccessibilityFocusState private var headerIsFocused: Bool
 
     init(
         title: String,
@@ -29,6 +30,7 @@ struct PanelContainer<Content: View>: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(MeOSColor.text)
                         .accessibilityAddTraits(.isHeader)
+                        .accessibilityFocused($headerIsFocused)
                     Text(context)
                         .font(.subheadline)
                         .foregroundStyle(MeOSColor.secondaryText)
@@ -59,6 +61,8 @@ struct PanelContainer<Content: View>: View {
         .frame(maxWidth: 720, maxHeight: 650)
         .meOSPanel()
         .padding(MeOSSpace.lg)
+        .accessibilityAction(.escape, onClose)
+        .onAppear { headerIsFocused = true }
     }
 }
 

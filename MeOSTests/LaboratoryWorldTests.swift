@@ -96,7 +96,10 @@ struct LaboratoryAppModelTests {
             if object.id == .systemEngineer {
                 #expect(model.presentedPanel == .mission)
             } else {
-                #expect(model.presentedPanel == object.component.map(AppPanel.system))
+                let expected: AppPanel? = object.id == .monitoringTerminal
+                    ? .diagnosticMission
+                    : object.component.map(AppPanel.system)
+                #expect(model.presentedPanel == expected)
             }
             model.closePanel()
         }

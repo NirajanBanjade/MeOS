@@ -61,9 +61,14 @@ Teach persistence, database connections, reads, writes, latency, capacity, and d
 
 ## Complete When
 
-- [ ] The database can be installed and connected from the shared world.
-- [ ] All validation, capacity, ordering, and connection rules are deterministic.
-- [ ] The scripted record survives the required mission sequence.
-- [ ] Mission 4 unlocks exactly once.
-- [ ] Database unit, integration, and UI tests pass.
+- [x] The database can be installed and connected from the shared world.
+  - Evidence: `DatabaseMissionPanel`, `AppModel.installDatabase` / `connectDatabase`, and `LaboratoryScene.updateDatabaseState` drive the shared slot, cable, status text, and accessible controls; the Mission 3 UI test passed on iPad Pro 13-inch (M5).
+- [x] All validation, capacity, ordering, and connection rules are deterministic.
+  - Evidence: `DatabaseMissionRun` validates trimmed key/value commands and commits only pure-engine results; `AppModelTests.databaseMissionEdges` plus `SimulationEngineTests` cover missing reads, five-key capacity, sixth insert rejection, upsert, disconnected requests, exact latency, and stable write ordering; all suites passed.
+- [x] The scripted record survives the required mission sequence.
+  - Evidence: `databaseMissionHappyPath` verifies `status = online` remains stored through the matching read and connected mixed workload, while replaying Mission 1 restores an empty database baseline.
+- [x] Mission 4 unlocks exactly once.
+  - Evidence: `databaseMissionHappyPath` verifies idempotent centralized completion and the UI test reaches “Mission 4 · Infrastructure Scaling.”
+- [x] Database unit, integration, and UI tests pass.
+  - Evidence: `swift test` passed 53/53; the Xcode 27.2 iPad unit/integration/performance run passed 56/56; the focused Mission 3 UI test passed; and the complete iPad UI suite passed 11/11.
 

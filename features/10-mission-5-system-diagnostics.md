@@ -56,9 +56,14 @@ Require the player to inspect evidence, identify a database bottleneck, choose a
 
 ## Complete When
 
-- [ ] The player must investigate rather than guess immediately.
-- [ ] Victory is based on measured improvement, not a specific button.
-- [ ] Incorrect and combined interventions receive accurate outcomes.
-- [ ] The title and replay unlock are awarded exactly once.
-- [ ] Diagnostic, integration, persistence, and UI tests pass.
+- [x] The player must investigate rather than guess immediately.
+  - Evidence: `DiagnosticMissionRun` gates all intervention controls behind a deterministic baseline and two distinct `DiagnosticEvidence` inspections; `DiagnosticMissionPanel` and `AppModelTests.diagnosticBaselineAndEvidenceGate` verify the path.
+- [x] Victory is based on measured improvement, not a specific button.
+  - Evidence: `DiagnosticMissionRun.evaluate` and `MissionVictoryRule.diagnosedBottleneck` reconcile the engine result and require 10 completions, no failures/rejections, and average latency at or below 1,000 ms; cache and replica fixtures pass independently.
+- [x] Incorrect and combined interventions receive accurate outcomes.
+  - Evidence: workers/server-only runs remain at 1,650 ms, cache reaches 525 ms, replica reaches 900 ms, combined selections build and charge the full graph, connection faults are distinct, and retries preserve a stable checkpoint in `AppModelTests`.
+- [x] The title and replay unlock are awarded exactly once.
+  - Evidence: `MissionEngine.complete`, `AppModelTests.diagnosticCompletionPersistenceAndReplay`, and the Mission 5 XCUITest verify idempotent completion, relaunch persistence, all-five replay access, and the preserved “MeOS System Architect” title.
+- [x] Diagnostic, integration, persistence, and UI tests pass.
+  - Evidence: `swift test` passed 61/61; the Xcode iPad unit/integration target passed 64 tests including SpriteKit performance checks; the focused Mission 5 alert → evidence → wrong repair → retry → valid repair → title → replay XCUITest passed; the app simulator build succeeded.
 

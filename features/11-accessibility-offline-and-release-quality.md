@@ -60,11 +60,19 @@ Make the complete MVP understandable, resilient, accessible, fully offline, perf
 
 ## Complete When
 
-- [ ] All five missions and replay work offline from a clean install.
-- [ ] Accessibility alternatives preserve every completion path.
-- [ ] Progress survives relaunch and lifecycle edge cases.
-- [ ] Determinism is unchanged by FPS, animation speed, or device performance.
-- [ ] The three-minute demonstration and timing targets are met.
-- [ ] All tests pass with no known reproducible crash.
-- [ ] Credits and every required local resource are packaged.
-- [ ] The archive is preferably under 25 MB and never above 500 MB.
+- [x] All five missions and replay work offline from a clean install.
+  - Evidence: `AppModelTests.cleanOfflineMissionJourneyAndReplay` completes Missions 1–5, restores the completed save, and starts a clean replay of each mission; source/package audit found no networking APIs or remote runtime packages; `swift test` passed 64 tests.
+- [x] Accessibility alternatives preserve every completion path.
+  - Evidence: `AccessibleInteractionsPanel` provides direct actions, and the UI suite covers accessible interaction plus Missions 1–5; Xcode 27.2 iPad UI tests passed 14/14.
+- [x] Progress survives relaunch and lifecycle edge cases.
+  - Evidence: `AppModelTests.backgroundingAndRestore` and `cleanOfflineMissionJourneyAndReplay`, plus `ShellStoreTests` migration/corruption coverage; Xcode unit tests passed 64 tests.
+- [x] Determinism is unchanged by FPS, animation speed, or device performance.
+  - Evidence: deterministic simulation and playback tests compare identical outcomes across frame rates and presentation speeds; Xcode performance tests passed 3/3.
+- [x] The three-minute demonstration and timing targets are met.
+  - Evidence: `MeOSUITests.testCleanInstallAllMissionsAndThreeMinuteLearningPath` asserts first learning within 60 seconds and the full clean-install Mission 1–5 path within 180 seconds; it passed in 86.7 seconds on iPad Pro 13-inch (M5). `testFreshLaunchPresentationPathAndRapidTapSafety` passed the 15-second first-interaction target.
+- [x] All tests pass with no known reproducible crash.
+  - Evidence: `swift test` passed 64/64; Xcode 27.2 unit tests passed 64/64, performance tests 3/3, and iPad UI tests 14/14.
+- [x] Credits and every required local resource are packaged.
+  - Evidence: the Release archive contains `Credits.txt`, compiled `Assets.car`, the app executable, and bundled app icons; mission and dialogue content are local Swift definitions.
+- [x] The archive is preferably under 25 MB and never above 500 MB.
+  - Evidence: Xcode Release archive measured 9.3 MB; inspected ZIP measured 4.0 MB, below both limits.

@@ -1,0 +1,16 @@
+MeOS Credits
+
+MeOS is an original offline educational game built with Apple-native frameworks.
+
+Visual resources
+- Original MeOS app icon artwork created for this project.
+- Laboratory, simulation, charts, and interface art are drawn in code.
+- Interface symbols are Apple SF Symbols.
+- Typography uses Apple-provided system fonts.
+
+Technology
+- Swift, SwiftUI, SpriteKit, Foundation, XCTest, and XCUITest.
+- No third-party runtime packages, remote resources, analytics, accounts, cloud storage, or downloaded models.
+
+Optional audio
+- This release does not require or bundle audio. Muting sound never changes mission behavior or progression.
